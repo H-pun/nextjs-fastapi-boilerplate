@@ -1,0 +1,58 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "api.index:app",
+        "--reload",
+        "--reload-dir",
+        "api",
+        "--reload-exclude=alembic/**",
+        "--reload-exclude=jobs/**",
+        "--reload-exclude=seeds/**",
+        "--reload-exclude=tests/**",
+        // "--reload-exclude=**/__pycache__/**",
+        // "--reload-exclude=**/.pytest_cache/**",
+        "--port",
+        "8080",
+        "--log-level",
+        "debug"
+      ],
+      "jinja": true,
+      "justMyCode": true,
+      "serverReadyAction": {
+        // "pattern": "Uvicorn running on\\s+https?://[^:]+:(\\d+)",
+        // "uriFormat": "http://localhost:%s/api/docs",
+        "pattern": "Application startup complete.",
+        "uriFormat": "http://localhost:8080/api/docs",
+        "action": "openExternally"
+      }
+      // "env": {
+      //   "PYTHONDONTWRITEBYTECODE": "1"
+      // }
+    },
+    {
+      "name": "Next.js",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "action": "openExternally"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run Fullstack",
+      "configurations": ["FastAPI", "Next.js"]
+    }
+  ]
+}

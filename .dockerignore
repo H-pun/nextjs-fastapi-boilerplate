@@ -1,0 +1,11 @@
+.github/workflows/**
+.vscode/**
+api/**
+jupyter/**
+kubernetes/**
+squid/**
+.env
+.env.example
+docker-compose.yml
+pytest.ini
+README.md

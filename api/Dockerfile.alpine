@@ -1,0 +1,23 @@
+FROM python:3.12-alpine
+
+ENV TZ=Asia/Jakarta
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR /app
+
+RUN apk update --no-cache && apk add --no-cache curl bash
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
+COPY . ./api
+
+ENV API_HOST=0.0.0.0 \
+    API_PORT=8000 \
+    API_WORKERS=1
+
+ENV GUNICORN_CMD_ARGS="--workers ${API_WORKERS} --bind ${API_HOST}:${API_PORT} --timeout 60"
+
+EXPOSE 8000
+# jalankan server
+CMD ["gunicorn", "api.index:app", "-k", "uvicorn.workers.UvicornWorker"]
