@@ -51,7 +51,7 @@ export default function Page() {
   const form = useForm({
     resolver: zodResolver(navigationFormSchema),
     defaultValues: {
-      role: "ADMIN",
+      roleId: "",
       navigations: [
         {
           id: crypto.randomUUID(),
@@ -72,11 +72,11 @@ export default function Page() {
   });
 
   const queryClient = useQueryClient();
-  const role = useWatch({ control: form.control, name: "role" });
+  const roleId = useWatch({ control: form.control, name: "roleId" });
 
   const { data, isFetching } = useQuery({
-    queryKey: ["navigation", role],
-    queryFn: () => getNavigation(role),
+    queryKey: ["navigation", roleId],
+    queryFn: () => getNavigation(roleId),
     staleTime: 1000 * 60 * 60,
     gcTime: 1000 * 60 * 60,
   });
@@ -84,7 +84,7 @@ export default function Page() {
   const { mutateAsync, isPending } = useMutation({
     mutationFn: saveNavigation,
     onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ["navigation", role] });
+      queryClient.refetchQueries({ queryKey: ["navigation", roleId] });
       toast.success("Navigation updated successfully");
     },
   });
@@ -93,9 +93,9 @@ export default function Page() {
 
   useEffect(() => {
     if (data) {
-      form.reset({ role, navigations: data });
+      form.reset({ roleId, navigations: data });
     }
-  }, [data, form, role]);
+  }, [data, form, roleId]);
 
   const onSubmit = async () => {
     const navs = form.getValues("navigations");
@@ -120,7 +120,7 @@ export default function Page() {
 
         <Controller
           control={form.control}
-          name="role"
+          name="roleId"
           render={({ field }) => (
             <Field className="max-w-xs">
               <FieldLabel>Role</FieldLabel>

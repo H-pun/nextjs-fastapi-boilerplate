@@ -8,7 +8,7 @@ export async function proxy(req: NextRequest) {
 
   if (token && pathname.startsWith("/login")) {
     const url = req.nextUrl.clone();
-    url.pathname = `/dashboard/${token.user.role.toLowerCase()}`;
+    url.pathname = `/dashboard`;
     return NextResponse.redirect(url);
   }
 
@@ -17,10 +17,6 @@ export async function proxy(req: NextRequest) {
     if (!token) {
       url.pathname = "/login";
       url.searchParams.set("callbackUrl", pathname + req.nextUrl.search);
-      return NextResponse.redirect(url);
-    }
-    if (pathname === "/dashboard") {
-      url.pathname = `/dashboard/${token.user.role.toLowerCase()}`;
       return NextResponse.redirect(url);
     }
   }

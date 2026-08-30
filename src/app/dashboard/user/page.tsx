@@ -83,7 +83,7 @@ const defaultValues: UserForm = {
   username: "",
   phone: "",
   password: "",
-  role: "USER",
+  roleId: "",
 };
 
 export default function Page() {
@@ -125,7 +125,7 @@ export default function Page() {
     setValue: setChangeRoleValue,
   } = useForm({
     resolver: zodResolver(changeRoleSchema),
-    defaultValues: { role: "USER" as const },
+    defaultValues: { roleId: "" as const },
   });
 
   const {
@@ -151,7 +151,7 @@ export default function Page() {
           username: data.username,
           phone: data.phone || "",
           password: "",
-          role: data.role,
+          roleId: data.role.id,
         });
         setOpenSheet(true);
       },
@@ -166,7 +166,7 @@ export default function Page() {
       },
       (data) => {
         setChangeRoleTarget(data);
-        setChangeRoleValue("role", data.role);
+        setChangeRoleValue("roleId", data.role.id);
         setOpenChangeRoleDialog(true);
       }
     ),
@@ -299,17 +299,17 @@ export default function Page() {
               <div className="grid gap-2">
                 <Label htmlFor="role">Role</Label>
                 <Select
-                  value={queryParams.role ?? ""}
+                  value={queryParams.roleId ?? ""}
                   onValueChange={(value) =>
-                    setQueryValue("role", value as "USER" | "ADMIN")
+                    setQueryValue("roleId", value)
                   }
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="All roles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="USER">User</SelectItem>
+                    <SelectItem value="admin-id">Admin</SelectItem>
+                    <SelectItem value="user-id">User</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -452,9 +452,9 @@ export default function Page() {
 
                     <Controller
                       control={control}
-                      name="role"
+                      name="roleId"
                       render={({ field }) => (
-                        <Field data-invalid={!!errors.role}>
+                        <Field data-invalid={!!errors.roleId}>
                           <FieldLabel htmlFor="role">Role</FieldLabel>
                           <Select
                             value={field.value}
@@ -465,11 +465,11 @@ export default function Page() {
                               <SelectValue placeholder="Role" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="USER">User</SelectItem>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
+                              <SelectItem value="user-id">User</SelectItem>
+                              <SelectItem value="admin-id">Admin</SelectItem>
                             </SelectContent>
                           </Select>
-                          <FieldError errors={[errors.role]} />
+                          <FieldError errors={[errors.roleId]} />
                         </Field>
                       )}
                     />
@@ -569,17 +569,17 @@ export default function Page() {
           >
             <Controller
               control={changeRoleControl}
-              name="role"
+              name="roleId"
               render={({ field }) => (
                 <Field>
                   <FieldLabel htmlFor="change-role">Role</FieldLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger id="change-role" className="w-full">
+                    <SelectTrigger id="change-roleId" className="w-full">
                       <SelectValue placeholder="Role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USER">User</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="user-id">User</SelectItem>
+                      <SelectItem value="admin-id">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>

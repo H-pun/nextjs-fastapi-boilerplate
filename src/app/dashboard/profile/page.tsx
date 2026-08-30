@@ -81,7 +81,7 @@ export default function AdminProfilePage() {
                 </CardDescription>
                 <div className="mt-2">
                   <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium capitalize text-red-800 dark:bg-red-900 dark:text-red-200">
-                    {user.role.toLowerCase()}
+                    {user.role.name.toLowerCase()}
                   </span>
                 </div>
               </div>

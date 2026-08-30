@@ -19,11 +19,11 @@ import { getNavigation } from "@/lib/api/navigation";
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
   const { data: navigation, isFetching: navigationLoading } = useQuery({
-    queryKey: ["navigation", session?.user.role],
-    queryFn: () => getNavigation(session!.user.role),
+    queryKey: ["navigation", session?.user?.role?.id],
+    queryFn: () => getNavigation(session!.user.role.id),
     staleTime: 1000 * 60 * 60,
     gcTime: 1000 * 60 * 60,
-    enabled: !!session?.user.role,
+    enabled: !!session?.user?.role?.id,
   });
 
   return (

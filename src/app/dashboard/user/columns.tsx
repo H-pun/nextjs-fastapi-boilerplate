@@ -42,7 +42,7 @@ export const getColumns = (
     header: "Username",
   },
   {
-    accessorKey: "role",
+    accessorKey: "role.name",
     header: "Role",
   },
   {

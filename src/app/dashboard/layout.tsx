@@ -12,18 +12,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
-const ROLE_SEGMENTS = ["admin", "user"];
-
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  const headersList = await headers();
-  const pathname = headersList.get("x-pathname") ?? "";
-  const segment = pathname.split("/")[2];
-
-  if (segment && ROLE_SEGMENTS.includes(segment)) {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role.toLowerCase() !== segment) {
-      forbidden();
-    }
+  const session = await getServerSession(authOptions);
+  
+  if (!session) {
+    forbidden();
   }
 
   return (

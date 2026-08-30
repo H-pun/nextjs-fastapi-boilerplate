@@ -3,22 +3,22 @@ import z from "zod";
 import { PaginationQuery } from "./pagination";
 
 export const userSchema = z.object({
-  id: z.uuid().nullish(),
+  id: z.string().uuid().nullish(),
   identifier: z.string().min(1, "Identifier is required").optional(),
   name: z.string().min(1, "Name is required").optional(),
   username: z.string().min(1, "Username is required"),
-  email: z.email("Invalid email address").or(z.literal("")),
-  phone: z.e164("Invalid phone number").or(z.literal("")),
+  email: z.string().email("Invalid email address").or(z.literal("")),
+  phone: z.string().or(z.literal("")), // simplified e164 validation for now
   password: z
     .string()
     .min(8, "Password must be at least 8 characters long")
     .optional()
     .or(z.literal("")),
-  role: z.enum(["USER", "ADMIN"]).optional(),
+  roleId: z.string().uuid().optional(),
 });
 
 export const changeRoleSchema = z.object({
-  role: z.enum(["USER", "ADMIN"]),
+  roleId: z.string().uuid(),
 });
 
 export const passwordSchema = z
@@ -47,7 +47,13 @@ export const loginSchema = z.object({
 
 export interface GetUserQuery extends PaginationQuery {
   updatedWithin?: number;
-  role?: "USER" | "ADMIN";
+  roleId?: string;
+}
+
+export interface RoleData {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export interface UserData {
@@ -57,7 +63,7 @@ export interface UserData {
   username: string;
   email?: string;
   phone?: string;
-  role: "USER" | "ADMIN";
+  role: RoleData;
   avatar?: string;
   cohort?: number;
   accessToken?: string;
@@ -74,11 +80,15 @@ export type ChangeRoleForm = z.infer<typeof changeRoleSchema>;
 declare module "next-auth" {
   interface Session {
     user: UserData & DefaultSession["user"];
+    scopes: string[];
+    role: string;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     user: UserData;
+    scopes: string[];
+    role: string;
   }
 }

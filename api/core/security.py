@@ -8,8 +8,14 @@ from pydantic import BaseModel
 from api.core.config import settings
 
 
+from uuid import UUID
+from pydantic import BaseModel
+from datetime import datetime
+
 class TokenPayload(BaseModel):
     sub: UUID | None = None
+    role: str | None = None
+    scopes: list[str] = []
     exp: int | None = None
     iat: int | None = None
 

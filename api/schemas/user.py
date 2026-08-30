@@ -3,46 +3,32 @@ from typing import Literal
 from fastapi import Query
 from typing_extensions import Annotated
 from uuid import UUID
-from enum import IntEnum
 from api.schemas.pagination import FilterQuery
-from pydantic import BaseModel, ConfigDict, Field, EmailStr, field_serializer
-
-
-class UserRole(IntEnum):
-    USER = 1
-    ADMIN = 2
-
-    @classmethod
-    def _missing_(cls, v):
-        """Dipanggil kalau parsing enum gagal"""
-        if isinstance(v, str):
-            try:
-                return cls[v.upper()]
-            except KeyError:
-                raise ValueError(f"Invalid role name: {v}")
-
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 
 class UpdatePasswordRequest(BaseModel):
     old_password: str = Field(..., min_length=8, examples=['securepassword'])
     new_password: str = Field(..., min_length=8, examples=['newsecurepassword'])
 
-
 class AdminResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, examples=['newsecurepassword'])
 
-
 class ChangeRoleRequest(BaseModel):
-    role: UserRole
-
+    role_id: UUID
 
 class AuthenticateUserRequest(BaseModel):
     username: str = Field(..., examples=['johndoe'])
     password: str = Field(..., examples=['Admin123!'])
 
+class RoleResponse(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    model_config = ConfigDict(from_attributes=True)
 
 class AuthenticateUserResponse(BaseModel):
     id: UUID
-    role: UserRole
+    role: RoleResponse
     identifier: str
     name: str
     username: str
@@ -57,11 +43,6 @@ class AuthenticateUserResponse(BaseModel):
         from_attributes=True,
     )
 
-    @field_serializer('role')
-    def get_enum_name(v) -> str:
-        return v.name
-
-
 class UpdateUserRequest(BaseModel):
     identifier: str | None = Field("", min_length=1, max_length=50, examples=['EMP-0001'])
     name: str | None = Field("", max_length=50, examples=['John Doe'])
@@ -70,7 +51,6 @@ class UpdateUserRequest(BaseModel):
     phone: str | None = Field("", max_length=15, examples=['+6281234567890'])
     cohort: int | None = Field(None, ge=1900, le=2100, examples=[2022])
 
-
 class CreateUserRequest(BaseModel):
     identifier: str = Field(..., min_length=1, max_length=50, examples=['EMP-0001'])
     name: str = Field(..., max_length=50, examples=['John Doe'])
@@ -78,12 +58,10 @@ class CreateUserRequest(BaseModel):
     email: EmailStr | Literal[""] = Field("", examples=['johndoe@example.com'])
     password: str = Field(..., min_length=8, examples=['securepassword'])
     phone: str | None = Field("", max_length=15, examples=['+6281234567890'])
-    role: UserRole = UserRole.USER
-
+    role_id: UUID
 
 class GetUserRequest(FilterQuery):
-    role: UserRole | None = None
+    role_id: UUID | None = None
     updated_within: int | None = Field(None, ge=1, description="Filter users updated within the last N days")
-
 
 GetUserQuery = Annotated[GetUserRequest, Query()]

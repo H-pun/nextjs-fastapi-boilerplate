@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from uuid import uuid4
 
-from api.database import User
+from api.database import User, Role
 from api.core.security import verify_password, get_id_from_header
 
 base_url = "/user"
@@ -24,16 +24,19 @@ def test_auth_fail(client: TestClient):
     assert r.status_code == 401
 
 
-def test_create_user(client: TestClient, db: Session):
+def test_create_user(client: TestClient, db: Session, user_token: dict[str, str]):
+    # Need to fetch a valid role ID first
+    role = db.query(Role).filter_by(slug="user").first()
+    
     data = {
         "identifier": "1234567890",
         "name": "New User",
         "email": "user@test.com",
         "username": "newuser",
         "password": "newpassword",
-        "role": 1
+        "role_id": str(role.id)
     }
-    r = client.post(base_url, json=data)
+    r = client.post(base_url, json=data, headers=user_token)
     assert r.status_code == 201
 
     user_db = db.query(User).filter_by(username=data["username"]).first()
@@ -57,7 +60,8 @@ def test_update_user(client: TestClient, db: Session, user_token: dict[str, str]
     assert updated_user.username == new_data["username"]
 
 
-def test_delete_user(client: TestClient, db: Session):
+def test_delete_user(client: TestClient, db: Session, user_token: dict[str, str]):
+    role = db.query(Role).filter_by(slug="user").first()
     # Setup: create dummy user
     user = User(
         id=uuid4(),
@@ -65,13 +69,14 @@ def test_delete_user(client: TestClient, db: Session):
         username="tobedeleted",
         password="temporary",
         identifier="9999999999",
+        role_id=role.id
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
     # Act
-    r = client.delete(f"{base_url}/{user.id}")
+    r = client.delete(f"{base_url}/{user.id}", headers=user_token)
     assert r.status_code == 200
     assert r.json()["message"] == "success"
 
