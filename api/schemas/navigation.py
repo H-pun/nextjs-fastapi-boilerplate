@@ -8,6 +8,7 @@ class Navigation(BaseModel):
     icon: str | None = None
     order: int
     external: bool
+    id_scope: UUID | None = None
     model_config = ConfigDict(
         from_attributes=True
     )
@@ -16,5 +17,4 @@ class GetNavigationResponse(Navigation):
     children: list[Navigation] = []
 
 class SaveNavigationRequest(BaseModel):
-    role_id: UUID = Field(...)
     navigations: list[GetNavigationResponse] = Field(...)

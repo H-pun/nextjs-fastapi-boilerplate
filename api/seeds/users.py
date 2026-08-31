@@ -8,10 +8,10 @@ logger = get_logger(__name__)
 def seed_users(db: Session) -> None:
     # Seed Scopes
     scopes_data = [
-        {"name": "user:read", "description": "Read users list"},
-        {"name": "user:manage", "description": "Create, update, delete users"},
-        {"name": "navigation:read", "description": "Read navigation"},
-        {"name": "navigation:manage", "description": "Manage navigations"},
+        {"key": "user:read", "label": "User Read", "description": "Read users list"},
+        {"key": "user:manage", "label": "User Manage", "description": "Create, update, delete users"},
+        {"key": "navigation:read", "label": "Navigation Read", "description": "Read navigation"},
+        {"key": "navigation:manage", "label": "Navigation Manage", "description": "Manage navigations"},
     ]
     
     scopes = []
@@ -26,27 +26,29 @@ def seed_users(db: Session) -> None:
         scopes = db.query(Scope).all()
         
     # Seed Roles
-    admin_role = db.query(Role).filter_by(slug="admin").first()
+    admin_role = db.query(Role).filter_by(code="admin").first()
     if not admin_role:
         logger.info("Seeding roles...")
-        admin_role = Role(name="Admin", slug="admin")
+        admin_role = Role(name="Administrator", code="admin")
         admin_role.scopes = scopes # Admin has all scopes
         db.add(admin_role)
         
-        user_role = Role(name="User", slug="user")
-        # Base user only has read access to their own things, maybe basic read
-        user_role.scopes = [s for s in scopes if s.name in ["user:read", "navigation:read"]]
+        user_role = Role(name="Team Member", code="user")
+        # Base user only has basic read access
+        user_role.scopes = [s for s in scopes if s.key in ["user:read", "navigation:read"]]
         db.add(user_role)
         
         db.flush()
 
+    # Seed Admin User
     if db.query(User).count() == 0:
-        logger.info("Seeding users...")
+        logger.info("Seeding initial admin user...")
         user = User(
-            name="Admin",
+            name="Super Administrator",
             identifier="0000000000",
             username="admin",
             password=hash_password("Admin123!"),
             role_id=admin_role.id,
         )
         db.add(user)
+        db.flush()

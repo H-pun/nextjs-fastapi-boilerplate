@@ -26,7 +26,7 @@ def test_auth_fail(client: TestClient):
 
 def test_create_user(client: TestClient, db: Session, user_token: dict[str, str]):
     # Need to fetch a valid role ID first
-    role = db.query(Role).filter_by(slug="user").first()
+    role = db.query(Role).filter_by(code="user").first()
     
     data = {
         "identifier": "1234567890",
@@ -61,7 +61,7 @@ def test_update_user(client: TestClient, db: Session, user_token: dict[str, str]
 
 
 def test_delete_user(client: TestClient, db: Session, user_token: dict[str, str]):
-    role = db.query(Role).filter_by(slug="user").first()
+    role = db.query(Role).filter_by(code="user").first()
     # Setup: create dummy user
     user = User(
         id=uuid4(),

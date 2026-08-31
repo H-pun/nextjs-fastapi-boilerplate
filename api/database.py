@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 from typing import Dict, Any, List
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, func, String, Table, Column
+from sqlalchemy import DateTime, ForeignKey, func, String, Table, Column, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -17,17 +17,22 @@ role_scopes = Table(
 
 class Scope(Base):
     __tablename__ = "scopes"
-    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    key: Mapped[str] = mapped_column(String, unique=True, index=True)
+    label: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String, nullable=True)
+    order: Mapped[int] = mapped_column(default=0)
 
 class Role(Base):
     __tablename__ = "roles"
     name: Mapped[str] = mapped_column(String, unique=True)
-    slug: Mapped[str] = mapped_column(String, unique=True, index=True)
+    code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    description: Mapped[str] = mapped_column(String, nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    order: Mapped[int] = mapped_column(default=0)
     
     scopes: Mapped[List[Scope]] = relationship(secondary=role_scopes, lazy="selectin")
     users: Mapped[List["User"]] = relationship(back_populates="role")
-    navigations: Mapped[List["Navigation"]] = relationship(back_populates="role_rel")
 
 class User(Base):
     __tablename__ = 'users'
@@ -55,7 +60,7 @@ class ActivityLog(Base):
     path: Mapped[str] = mapped_column()
     method: Mapped[str] = mapped_column()
     status_code: Mapped[int] = mapped_column()
-    duration: Mapped[float] = mapped_column()  # in seconds
+    duration: Mapped[float] = mapped_column()
     payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=True)
     response: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -68,17 +73,11 @@ class Navigation(Base):
     icon: Mapped[str] = mapped_column(nullable=True)
     order: Mapped[int] = mapped_column()
     external: Mapped[bool] = mapped_column(default=False)
+    group: Mapped[str] = mapped_column(nullable=True)
     
-    role_id: Mapped[UUID] = mapped_column(ForeignKey("roles.id", ondelete="CASCADE"))
-    role_rel: Mapped[Role] = relationship(back_populates="navigations", lazy="selectin")
+    id_scope: Mapped[UUID] = mapped_column(ForeignKey("scopes.id", ondelete="SET NULL"), nullable=True)
 
-    parent: Mapped["Navigation"] = relationship(
-        back_populates="children",
-        remote_side="Navigation.id",
-    )
+    parent: Mapped["Navigation"] = relationship(back_populates="children", remote_side="Navigation.id")
     children: Mapped[list["Navigation"]] = relationship(
-        back_populates="parent",
-        cascade="all, delete-orphan",
-        order_by="Navigation.order",
-        passive_deletes=True,
+        back_populates="parent", cascade="all, delete-orphan", order_by="Navigation.order", passive_deletes=True
     )

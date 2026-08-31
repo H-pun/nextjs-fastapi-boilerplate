@@ -53,7 +53,7 @@ export interface GetUserQuery extends PaginationQuery {
 export interface RoleData {
   id: string;
   name: string;
-  slug: string;
+  code: string;
 }
 
 export interface UserData {

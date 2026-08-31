@@ -20,11 +20,7 @@ class AuthenticateUserRequest(BaseModel):
     username: str = Field(..., examples=['johndoe'])
     password: str = Field(..., examples=['Admin123!'])
 
-class RoleResponse(BaseModel):
-    id: UUID
-    name: str
-    slug: str
-    model_config = ConfigDict(from_attributes=True)
+from api.schemas.role import RoleResponse
 
 class AuthenticateUserResponse(BaseModel):
     id: UUID

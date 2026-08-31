@@ -35,7 +35,7 @@ async def create(db: SessionDep, data: CreateUserRequest, user: User = Security(
 async def update(db: SessionDep, data: UpdateUserRequest, id_user: UUID, user: CurrentUser):
     # Only allow update self or require user:manage scope
     if user.id != id_user:
-        if "user:manage" not in (s.name for s in user.role.scopes):
+        if "user:manage" not in (s.key for s in user.role.scopes):
             raise HTTPException(status_code=403, detail="Forbidden: Missing scope 'user:manage'")
     await UserService.update_user(db, data=data, id_user=id_user)
     return {"message": "success"}

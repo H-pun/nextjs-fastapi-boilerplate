@@ -27,12 +27,12 @@ async def authenticate(db: Session, *, data: AuthenticateUserRequest) -> Authent
     response = AuthenticateUserResponse.model_validate(user)
     
     # Pack role and scopes into token
-    role_slug = user.role.slug if user.role else ""
-    scopes = [s.name for s in user.role.scopes] if user.role else []
+    role_code = user.role.code if user.role else ""
+    scopes = [s.key for s in user.role.scopes] if user.role else []
     
     response.access_token = create_access_token(
         subject=user.id,
-        payload={"role": role_slug, "scopes": scopes}
+        payload={"role": role_code, "scopes": scopes}
     )
     return response
 

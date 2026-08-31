@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { forbidden } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -13,9 +14,18 @@ import {
 } from "@/components/ui/sidebar";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ?? "";
+  const segment = pathname.split("/")[2];
+
   const session = await getServerSession(authOptions);
-  
+
   if (!session) {
+    forbidden();
+  }
+
+  // Jika mencoba akses /dashboard/admin/* pastikan role adalah "admin"
+  if (segment === "admin" && session.role !== "admin") {
     forbidden();
   }
 

@@ -2,10 +2,10 @@ import axios from "@/lib/axios";
 import type { Navigation, NavigationForm } from "@/lib/types/navigation";
 
 // TODO: Implement API for default role navigation
-export const getNavigation = async (role?: number | string) => {
+export const getNavigation = async () => {
   try {
     const response = await axios.get<Navigation[]>("/navigation", {
-      params: { role },
+      
     });
     return response.data;
   } catch (error) {
