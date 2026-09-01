@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "I-Smile Laboratory",
-  description: "Intelligent System & Machine Learning Laboratory",
+  title: "Boilerplate",
+  description: "Next.js & FastAPI Boilerplate with Role-based Access Control",
 };
 
 export default function RootLayout({

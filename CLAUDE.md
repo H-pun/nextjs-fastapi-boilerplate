@@ -169,14 +169,35 @@ Untuk update yang juga butuh nilai lama (misalnya hapus file S3 lama sebelum upl
 `exclude_unset=True` hanya berguna kalau frontend memang **tidak mengirim** field yang tidak diubah. Kalau field opsional tidak dikirim saat kosong (misalnya `if (data.publishAt) form.append(...)`), maka field itu tidak masuk `model_fields_set` → aman di-exclude → nilai DB tetap. Ini berarti **tidak perlu validator khusus** untuk konversi `""` → `None` — cukup jangan kirim field-nya dari frontend kalau kosong.
 
 ### Auth guards (always use these)
-```python
-from api.core.deps import CurrentUser, only_admin, SessionDep, S3ClientDep
 
-@router.get("/")
-def list(user: CurrentUser, db: SessionDep):
-    only_admin(user)   # raises 403 if not ADMIN (except in development)
+Authorisation is scope-based. Declare the scope on the endpoint with
+`Security(...)` — never check a role name, since roles are renameable from the
+Access Control page.
+
+```python
+from fastapi import Security
+from api.core.deps import CurrentUser, get_current_user, SessionDep, S3ClientDep
+from api.database import User
+
+# Needs a scope: 401 without a token, 403 when the scope is missing.
+@router.get("")
+async def get_all(db: SessionDep, user: User = Security(get_current_user, scopes=["user:manage"])):
+    ...
+
+# Any signed-in user.
+@router.get("/me")
+async def get_me(user: CurrentUser):
     ...
 ```
+
+Scopes are read from the database on every request (`user.scope_keys`), not
+from the token, so revoking one takes effect immediately. Seeded scopes live in
+`api/seeds/users.py`; keys must read `resource:action`, enforced by a CHECK
+constraint on `scopes.key`.
+
+Guard against lockout when a write could remove the last administrator — call
+`guard_last_admin(db)` from `api/services/role.py` after `flush()` and before
+`commit()`. It refuses with 409 if nobody would be left holding `user:manage`.
 
 ### Query params — inherit from `FilterQuery`
 
@@ -249,10 +270,9 @@ from typing import Annotated
 async def create(
     db: SessionDep,
     s3: S3ClientDep,
-    user: CurrentUser,
     data: Annotated[CreateFooRequest, Form()],
+    user: User = Security(get_current_user, scopes=["foo:manage"]),
 ) -> FooResponse:
-    only_admin(user)
     return await FooService.create(db, s3=s3, data=data)
 ```
 
@@ -617,9 +637,11 @@ Python virtualenv is at `.venv/`. Activate with `source .venv/bin/activate`.
 - **UUID primary keys**: All models inherit from `Base` which provides `id: UUID` automatically.
 - **Pagination**: Use `paginate_select()` from `api/core/pagination.py` — returns `Pagination[T]`.
 - **File storage**: Always store only the S3 key (not full URL) in the DB. The bucket name comes from `S3_BUCKET`.
-- **Role check in dev**: `only_admin()` skips the check in `ENVIRONMENT=development` — don't rely on it in tests.
+- **Authorisation**: scope-based, via `Security(get_current_user, scopes=[...])`. Scopes come from the database each request, never from the token, and there is no development bypass — a missing scope is 403 everywhere.
+- **Roles**: a user holds many (`user_roles`), and a role holds many scopes (`role_scopes`). Roles carry no authority of their own; every check resolves to scopes.
+- **Identity vs authorisation**: `users` is who someone is, `user_identities` is how they sign in (`local`, and later `keycloak`/`google`). Match on `(provider, subject)` only — never on email alone, or anyone who can register that address with the provider takes the account.
 - **Tailwind v4**: No `tailwind.config.js` — config is done via CSS variables and PostCSS. Do not create a tailwind config file.
 - **React Compiler**: Only annotate components with `"use memo"` if needed — `compilationMode: "annotation"` means opt-in only.
 - **next-auth session shape**: `session.user` is `UserData` (see `src/lib/types/user.ts`), not the default next-auth User.
-- **OpenAPI endpoint**: Protected — only accessible by ADMIN role. Available at `/api/v1/docs` in non-production.
+- **OpenAPI endpoint**: Protected — requires the `user:manage` scope. Available at `/api/v1/docs` in non-production.
 - **Adding env vars to frontend**: Setiap env var baru di `next.config.ts` harus didaftarkan di dua tempat di `src/Dockerfile` dan `src/docker-entrypoint.sh`. Di Dockerfile tambah `ENV VAR_NAME=http://VAR_NAME_PLACEHOLDER` di builder stage. Di entrypoint tambah `_replace_var "VAR_NAME" "${VAR_NAME:-}"`. Tanpa ini, build akan gagal dengan error `destination does not start with /` atau env var tidak terganti saat runtime.

@@ -42,8 +42,11 @@ export const getColumns = (
     header: "Username",
   },
   {
-    accessorKey: "role",
-    header: "Role",
+    id: "roles",
+    header: "Roles",
+    enableSorting: false,
+    cell: ({ row }) =>
+      row.original.roles?.map((role) => role.name).join(", ") || "—",
   },
   {
     accessorKey: "phone",

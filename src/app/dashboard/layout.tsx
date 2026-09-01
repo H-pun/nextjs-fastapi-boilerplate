@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
 import { forbidden } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -12,19 +11,20 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
-const ROLE_SEGMENTS = ["admin", "user"];
-
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  const headersList = await headers();
-  const pathname = headersList.get("x-pathname") ?? "";
-  const segment = pathname.split("/")[2];
+  const session = await getServerSession(authOptions);
 
-  if (segment && ROLE_SEGMENTS.includes(segment)) {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role.toLowerCase() !== segment) {
-      forbidden();
-    }
+  if (!session) {
+    forbidden();
   }
+
+  // No per-route check here. This layout is shared by every dashboard route,
+  // and Partial Rendering keeps it mounted across client-side navigations —
+  // so it runs with the pathname of whichever route mounted it first, not the
+  // one being visited. Verified: navigating from /dashboard to an admin route
+  // re-ran this with x-pathname=/dashboard, and the check silently passed.
+  // Route-specific gates belong in the layout of the route they guard, where
+  // the segment is structural rather than read from a header.
 
   return (
     <SidebarProvider>

@@ -1,24 +1,27 @@
 import type { DefaultSession } from "next-auth";
 import z from "zod";
 import { PaginationQuery } from "./pagination";
+import type { Role } from "./access";
 
 export const userSchema = z.object({
   id: z.uuid().nullish(),
+  roleIds: z.array(z.uuid()).min(1, "Pick at least one role"),
   identifier: z.string().min(1, "Identifier is required").optional(),
   name: z.string().min(1, "Name is required").optional(),
   username: z.string().min(1, "Username is required"),
   email: z.email("Invalid email address").or(z.literal("")),
-  phone: z.e164("Invalid phone number").or(z.literal("")),
+  // The backend caps this at 15 chars but does not enforce a dialling format,
+  // so neither does this — z.e164() rejected numbers the API accepts.
+  phone: z.string().max(15, "Phone must be at most 15 characters").or(z.literal("")),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters long")
     .optional()
     .or(z.literal("")),
-  role: z.enum(["USER", "ADMIN"]).optional(),
 });
 
 export const changeRoleSchema = z.object({
-  role: z.enum(["USER", "ADMIN"]),
+  roleIds: z.array(z.uuid()).min(1, "Pick at least one role"),
 });
 
 export const passwordSchema = z
@@ -37,7 +40,9 @@ export const passwordSchema = z
   });
 
 export const resetPasswordSchema = z.object({
-  newPassword: z.string().min(8, "New password must be at least 8 characters long"),
+  newPassword: z
+    .string()
+    .min(8, "New password must be at least 8 characters long"),
 });
 
 export const loginSchema = z.object({
@@ -47,7 +52,7 @@ export const loginSchema = z.object({
 
 export interface GetUserQuery extends PaginationQuery {
   updatedWithin?: number;
-  role?: "USER" | "ADMIN";
+  roleId?: string;
 }
 
 export interface UserData {
@@ -57,12 +62,19 @@ export interface UserData {
   username: string;
   email?: string;
   phone?: string;
-  role: "USER" | "ADMIN";
+  roles: Role[];
   avatar?: string;
   cohort?: number;
   accessToken?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Every scope a user holds, across all their roles. Mirrors `User.scope_keys`
+ *  on the backend — but for showing and hiding UI only. The API enforces its
+ *  own checks, so hiding a button here is never the thing keeping anyone out. */
+export function scopeKeys(user?: Pick<UserData, "roles">): Set<string> {
+  return new Set(user?.roles?.flatMap((role) => role.scopes.map((s) => s.key)) ?? []);
 }
 
 export type LoginForm = z.infer<typeof loginSchema>;
@@ -71,6 +83,9 @@ export type PasswordForm = z.infer<typeof passwordSchema>;
 export type ResetPasswordForm = z.infer<typeof resetPasswordSchema>;
 export type ChangeRoleForm = z.infer<typeof changeRoleSchema>;
 
+// Scopes are not stored on the session. They ride along inside `user.roles`,
+// which the API refreshes on login and on `useSession().update()`, so there is
+// no second copy to go stale against the database.
 declare module "next-auth" {
   interface Session {
     user: UserData & DefaultSession["user"];

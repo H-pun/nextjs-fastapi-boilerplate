@@ -79,10 +79,15 @@ export default function AdminProfilePage() {
                 <CardDescription className="text-center">
                   {user.identifier}
                 </CardDescription>
-                <div className="mt-2">
-                  <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium capitalize text-red-800 dark:bg-red-900 dark:text-red-200">
-                    {user.role.toLowerCase()}
-                  </span>
+                <div className="mt-2 flex flex-wrap justify-center gap-1">
+                  {user.roles?.map((role) => (
+                    <span
+                      key={role.id}
+                      className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium capitalize text-red-800 dark:bg-red-900 dark:text-red-200"
+                    >
+                      {role.name.toLowerCase()}
+                    </span>
+                  ))}
                 </div>
               </div>
             </CardHeader>

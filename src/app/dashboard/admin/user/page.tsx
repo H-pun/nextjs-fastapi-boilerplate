@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDataTable } from "@/hooks/use-data-table";
 
+import { getRoles } from "@/lib/api/access";
+import { RoleChecklist } from "./_components/role-checklist";
 import { getColumns } from "./columns";
 import {
   changeRole,
@@ -83,11 +85,19 @@ const defaultValues: UserForm = {
   username: "",
   phone: "",
   password: "",
-  role: "USER",
+  roleIds: [],
 };
 
 export default function Page() {
   const queryClient = useQueryClient();
+
+  // Shared with RoleChecklist through the query cache, so the filter and the
+  // form always offer the same list.
+  const { data: roles = [] } = useQuery({
+    queryKey: ["roles"],
+    queryFn: getRoles,
+    staleTime: 1000 * 60 * 5,
+  });
 
   const [openFilters, setOpenFilters] = useState(false);
   const [openSheet, setOpenSheet] = useState(false);
@@ -125,7 +135,7 @@ export default function Page() {
     setValue: setChangeRoleValue,
   } = useForm({
     resolver: zodResolver(changeRoleSchema),
-    defaultValues: { role: "USER" as const },
+    defaultValues: { roleIds: [] as string[] },
   });
 
   const {
@@ -151,7 +161,7 @@ export default function Page() {
           username: data.username,
           phone: data.phone || "",
           password: "",
-          role: data.role,
+          roleIds: data.roles.map((role) => role.id),
         });
         setOpenSheet(true);
       },
@@ -166,7 +176,7 @@ export default function Page() {
       },
       (data) => {
         setChangeRoleTarget(data);
-        setChangeRoleValue("role", data.role);
+        setChangeRoleValue("roleIds", data.roles.map((role) => role.id));
         setOpenChangeRoleDialog(true);
       }
     ),
@@ -299,17 +309,20 @@ export default function Page() {
               <div className="grid gap-2">
                 <Label htmlFor="role">Role</Label>
                 <Select
-                  value={queryParams.role ?? ""}
+                  value={queryParams.roleId ?? ""}
                   onValueChange={(value) =>
-                    setQueryValue("role", value as "USER" | "ADMIN")
+                    setQueryValue("roleId", value)
                   }
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="All roles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="USER">User</SelectItem>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -452,24 +465,20 @@ export default function Page() {
 
                     <Controller
                       control={control}
-                      name="role"
+                      name="roleIds"
                       render={({ field }) => (
-                        <Field data-invalid={!!errors.role}>
-                          <FieldLabel htmlFor="role">Role</FieldLabel>
-                          <Select
+                        <Field data-invalid={!!errors.roleIds}>
+                          <FieldLabel htmlFor="roles">Roles</FieldLabel>
+                          <RoleChecklist
+                            id="roles"
                             value={field.value}
-                            onValueChange={field.onChange}
+                            onChange={field.onChange}
                             disabled={isLoading}
-                          >
-                            <SelectTrigger id="role" className="w-full">
-                              <SelectValue placeholder="Role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="USER">User</SelectItem>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FieldError errors={[errors.role]} />
+                          />
+                          <FieldDescription>
+                            A user may hold more than one.
+                          </FieldDescription>
+                          <FieldError errors={[errors.roleIds]} />
                         </Field>
                       )}
                     />
@@ -557,9 +566,9 @@ export default function Page() {
       <Dialog open={openChangeRoleDialog} onOpenChange={setOpenChangeRoleDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change Role</DialogTitle>
+            <DialogTitle>Change Roles</DialogTitle>
             <DialogDescription>
-              Change the role for {changeRoleTarget?.name}.
+              Set which roles {changeRoleTarget?.name} holds.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -569,19 +578,17 @@ export default function Page() {
           >
             <Controller
               control={changeRoleControl}
-              name="role"
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel htmlFor="change-role">Role</FieldLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger id="change-role" className="w-full">
-                      <SelectValue placeholder="Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USER">User</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+              name="roleIds"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={!!fieldState.error}>
+                  <FieldLabel htmlFor="change-roles">Roles</FieldLabel>
+                  <RoleChecklist
+                    id="change-roles"
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={isChangingRole}
+                  />
+                  <FieldError errors={[fieldState.error]} />
                 </Field>
               )}
             />

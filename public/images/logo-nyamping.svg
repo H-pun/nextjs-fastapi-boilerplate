@@ -1,0 +1,6 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" width="220" height="48" fill="none">
+  <g transform="translate(6, 4) scale(0.15625)">
+    <path fill="none" stroke="#09090b" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" d="M208 128l-80 80M192 40L40 192"/>
+  </g>
+  <text x="56" y="32" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#09090b">Boilerplate</text>
+</svg>

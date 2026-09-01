@@ -6,6 +6,7 @@
     "fastapi": "fastapi dev --port 8080 api/index.py",
     "dev": "next dev -p 3030",
     "migrate": "alembic upgrade head",
+    "migration:generate": "alembic revision --autogenerate",
     "seed": "py -m api.seeder",
     "build": "next build",
     "start": "next start",

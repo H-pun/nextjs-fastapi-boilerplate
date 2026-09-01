@@ -69,9 +69,9 @@ function LoginContent() {
       <div className="flex w-full max-w-sm flex-col gap-6">
         <Link href={"/"} className="self-center">
           <Image
-            src="/images/logo-nyamping.png"
+            src="/images/logo-nyamping.svg"
             alt="Logo"
-            width={128}
+            width={160}
             height={48}
             className="h-auto object-contain"
           />

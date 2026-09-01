@@ -379,10 +379,10 @@ export default function AvatarDialog({
                       className="flex w-80 max-w-80 flex-col gap-3 p-3"
                     >
                       <Image
-                        src="/images/avatar-crop-guide.png"
+                        src="/images/avatar-crop-guide.svg"
                         alt="Avatar crop guide"
-                        width={568}
-                        height={573}
+                        width={400}
+                        height={400}
                         className="w-full rounded-md object-contain"
                       />
                       <div className="space-y-1">
