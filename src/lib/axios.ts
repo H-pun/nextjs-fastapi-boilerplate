@@ -29,9 +29,7 @@ axios.interceptors.response.use(
   (error) => {
     const url = error.config?.url ?? "";
     if (error.response?.status === 401 && !url.includes("/login")) {
-      signOut({ redirect: false }).then(
-        () => (window.location.href = "/login")
-      );
+      void signOut({ callbackUrl: "/login" });
     }
     return Promise.reject(error);
   }

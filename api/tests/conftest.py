@@ -67,23 +67,3 @@ def user_token(client: TestClient) -> dict[str, str]:
     assert "access_token" in response
     auth_token = response["access_token"]
     return {"Authorization": f"Bearer {auth_token}"}
-
-
-
-@pytest.fixture(scope="module")
-def client(db: Session) -> Generator[TestClient, None, None]:
-    app.dependency_overrides[get_db] = lambda: db
-    with TestClient(app) as client:
-        yield client
-
-
-@pytest.fixture(scope="module")
-def user_token(client: TestClient) -> dict[str, str]:
-    data = {"username": "admin", "password": "Admin123!"}
-    r = client.post("/user/login", json=data)
-    assert r.status_code == 200
-
-    response = r.json()
-    assert "access_token" in response
-    auth_token = response["access_token"]
-    return {"Authorization": f"Bearer {auth_token}"}

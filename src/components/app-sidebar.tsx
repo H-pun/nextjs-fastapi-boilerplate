@@ -64,7 +64,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter className="border-sidebar-border gap-2 border-t p-2">
         <NavSupport />
-        <div className="px-2 pt-2 border-t mt-2 border-sidebar-border">
+        <div className="border-sidebar-border mt-1 border-t pt-2">
           <NavUser user={session?.user} />
         </div>
       </SidebarFooter>

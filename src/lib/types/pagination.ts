@@ -12,6 +12,11 @@ export interface PaginationQuery {
   search?: string;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
+  /** JSON-encoded data-table filters forwarded to the API. */
+  filters?: string;
+  /** JSON-encoded multi-column sorting forwarded to the API. */
+  sort?: string;
+  joinOperator?: "and" | "or";
 }
 
 export const defaultPaginationQuery: PaginationQuery = {

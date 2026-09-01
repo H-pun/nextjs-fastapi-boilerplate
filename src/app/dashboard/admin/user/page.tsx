@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useDataTable } from "@/hooks/use-data-table";
+import { useDataTable } from "@/hooks/use-server-data-table";
 
+import { cn } from "@/lib/utils";
 import { getRoles } from "@/lib/api/access";
 import { RoleChecklist } from "./_components/role-checklist";
 import { getColumns } from "./columns";
@@ -16,10 +17,17 @@ import {
   resetPassword,
   updateUser,
 } from "@/lib/api/user";
-import { ColumnVisibilityToggle } from "@/components/ui/column-visibility-toggle";
-import { DataTable } from "@/components/ui/data-table";
+import { PageHeader } from "@/components/page-header";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableSettingsMenu } from "@/components/data-table/data-table-settings-menu";
+import { DataTableSkeleton } from "@/components/data-table/data-table-skeleton";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from "@/components/ui/field";
 import {
   Sheet,
   SheetClose,
@@ -65,7 +73,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import {
   UserData,
   UserForm,
@@ -88,6 +96,10 @@ const defaultValues: UserForm = {
   roleIds: [],
 };
 
+const TITLE = "User Management";
+const DESCRIPTION =
+  "Manage accounts, roles, and access for everyone in this workspace.";
+
 export default function Page() {
   const queryClient = useQueryClient();
 
@@ -105,7 +117,9 @@ export default function Page() {
   const [openResetPasswordDialog, setOpenResetPasswordDialog] = useState(false);
   const [openChangeRoleDialog, setOpenChangeRoleDialog] = useState(false);
   const [selectedData, setSelectedData] = useState<UserData | null>(null);
-  const [changeRoleTarget, setChangeRoleTarget] = useState<UserData | null>(null);
+  const [changeRoleTarget, setChangeRoleTarget] = useState<UserData | null>(
+    null
+  );
 
   const {
     register,
@@ -139,9 +153,11 @@ export default function Page() {
   });
 
   const {
+    data,
     filter,
     table,
     isFetching,
+    refetch,
     queryParams,
     activeQueryCount,
     setFilter,
@@ -176,14 +192,18 @@ export default function Page() {
       },
       (data) => {
         setChangeRoleTarget(data);
-        setChangeRoleValue("roleIds", data.roles.map((role) => role.id));
+        setChangeRoleValue(
+          "roleIds",
+          data.roles.map((role) => role.id)
+        );
         setOpenChangeRoleDialog(true);
       }
     ),
     hiddenColumns: ["id", "email", "createdAt", "updatedAt"],
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["users"] });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["users"] });
 
   const { mutateAsync: createAsync, isPending: isCreating } = useMutation({
     mutationFn: createUser,
@@ -238,18 +258,20 @@ export default function Page() {
       },
     });
 
-  const { mutateAsync: changeRoleAsync, isPending: isChangingRole } = useMutation({
-    mutationFn: (data: ChangeRoleForm) => changeRole(changeRoleTarget!.id, data),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Role changed successfully");
-      setOpenChangeRoleDialog(false);
-    },
-    onError: (error) => {
-      console.error("Error changing role:", error);
-      toast.error("Failed to change role");
-    },
-  });
+  const { mutateAsync: changeRoleAsync, isPending: isChangingRole } =
+    useMutation({
+      mutationFn: (data: ChangeRoleForm) =>
+        changeRole(changeRoleTarget!.id, data),
+      onSuccess: () => {
+        invalidate();
+        toast.success("Role changed successfully");
+        setOpenChangeRoleDialog(false);
+      },
+      onError: (error) => {
+        console.error("Error changing role:", error);
+        toast.error("Failed to change role");
+      },
+    });
 
   const onSubmit = async (data: UserForm) => {
     if (data.id) {
@@ -290,31 +312,33 @@ export default function Page() {
     isResettingPassword ||
     isChangingRole;
 
-  return (
-    <section className="mx-auto w-full max-w-7xl p-6">
-      <h2 className="text-xl font-bold">User Management</h2>
-      <div className="mt-4 flex items-center justify-between gap-2 py-2">
-        <Input
-          placeholder="Filter user..."
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          className="h-8 max-w-60"
-        />
-        <ColumnVisibilityToggle table={table} />
+  const toolbar = (
+    <div className="flex w-full flex-col gap-2 p-1 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-64">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Input
+            type="search"
+            aria-label="Search users"
+            placeholder="Search users..."
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            className="h-8 pl-8"
+          />
+        </div>
+
         <Filter open={openFilters} onOpenChange={setOpenFilters}>
           <FilterTrigger disabled={isFetching} activeCount={activeQueryCount} />
 
-          <FilterContent align="end">
+          <FilterContent align="start" className="w-72">
             <div className="space-y-4">
               <div className="grid gap-2">
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={queryParams.roleId ?? ""}
-                  onValueChange={(value) =>
-                    setQueryValue("roleId", value)
-                  }
+                  onValueChange={(value) => setQueryValue("roleId", value)}
                 >
-                  <SelectTrigger id="role">
+                  <SelectTrigger id="role" className="w-full">
                     <SelectValue placeholder="All roles" />
                   </SelectTrigger>
                   <SelectContent>
@@ -335,7 +359,7 @@ export default function Page() {
                     setQueryValue("updatedWithin", Number(value))
                   }
                 >
-                  <SelectTrigger id="updated-within">
+                  <SelectTrigger id="updated-within" className="w-full">
                     <SelectValue placeholder="Any time" />
                   </SelectTrigger>
                   <SelectContent>
@@ -356,6 +380,14 @@ export default function Page() {
             </div>
           </FilterContent>
         </Filter>
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        <DataTableSettingsMenu
+          table={table}
+          onRefresh={refetch}
+          isRefreshing={isFetching}
+        />
         <Button
           onClick={() => {
             setOpenSheet(true);
@@ -365,21 +397,40 @@ export default function Page() {
           size="sm"
         >
           <Plus />
-          Add User
+          Add user
         </Button>
       </div>
-      <DataTable table={table} loading={isFetching} />
+    </div>
+  );
+
+  return (
+    <>
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <PageHeader title={TITLE} description={DESCRIPTION} />
+
+        {!data && isFetching ? (
+          <DataTableSkeleton columnCount={6} filterCount={2} />
+        ) : (
+          <DataTable
+            table={table}
+            className={cn(isFetching && "opacity-60 transition-opacity")}
+          >
+            {toolbar}
+          </DataTable>
+        )}
+      </div>
 
       <Sheet open={openSheet} onOpenChange={setOpenSheet}>
         <SheetContent className="flex flex-col overflow-hidden">
           <SheetHeader>
-            <SheetTitle>{state} Data</SheetTitle>
+            <SheetTitle>{state} user</SheetTitle>
             <SheetDescription>
-              {state} user information and settings here. Click save when you
-              are done.
+              {state === "Add"
+                ? "Create an account and assign its initial access."
+                : "Update this user's account information."}
             </SheetDescription>
           </SheetHeader>
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="px-4">
               <form
                 id="user-form"
@@ -563,7 +614,10 @@ export default function Page() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={openChangeRoleDialog} onOpenChange={setOpenChangeRoleDialog}>
+      <Dialog
+        open={openChangeRoleDialog}
+        onOpenChange={setOpenChangeRoleDialog}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Roles</DialogTitle>
@@ -608,6 +662,6 @@ export default function Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </>
   );
 }

@@ -111,6 +111,17 @@ async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[Au
         "phone": User.phone,
         "created_at": User.created_at,
         "updated_at": User.updated_at,
+        "createdAt": User.created_at,
+        "updatedAt": User.updated_at,
+    }
+    filter_map = {
+        "identifier": User.identifier,
+        "name": User.name,
+        "email": User.email,
+        "username": User.username,
+        "phone": User.phone,
+        "createdAt": User.created_at,
+        "updatedAt": User.updated_at,
     }
 
     return paginate_select(
@@ -119,6 +130,7 @@ async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[Au
         filters=filters,
         searchable=searchable,
         sort_map=sort_map,
+        filter_map=filter_map,
         default_sort=User.identifier,
     )
 

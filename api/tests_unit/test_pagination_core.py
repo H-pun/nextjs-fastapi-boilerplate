@@ -1,0 +1,125 @@
+from datetime import datetime, timezone
+from decimal import Decimal
+
+import pytest
+from fastapi import HTTPException
+from sqlalchemy import DateTime, Integer, Numeric, String, create_engine, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+
+from api.core.pagination import paginate_select
+from api.schemas.pagination import FilterParams
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Item(Base):
+    __tablename__ = "pagination_test_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+@pytest.fixture()
+def session():
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add_all(
+            [
+                Item(
+                    id=1,
+                    name="Alpha",
+                    amount=Decimal("100.00"),
+                    created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                ),
+                Item(
+                    id=2,
+                    name="Beta",
+                    amount=Decimal("250.00"),
+                    created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                ),
+                Item(
+                    id=3,
+                    name=None,
+                    amount=Decimal("500.00"),
+                    created_at=datetime(2026, 1, 3, tzinfo=timezone.utc),
+                ),
+            ]
+        )
+        db.commit()
+        yield db
+
+
+def paginate(session: Session, filters: FilterParams):
+    return paginate_select(
+        session,
+        select(Item),
+        filters=filters,
+        searchable=[Item.name],
+        sort_map={"name": Item.name, "amount": Item.amount},
+        filter_map={"name": Item.name, "amount": Item.amount},
+        default_sort=Item.name,
+    )
+
+
+def test_advanced_filter_and_multi_sort(session: Session):
+    result = paginate(
+        session,
+        FilterParams(
+            filters=(
+                '[{"id":"amount","value":[100,500],'
+                '"variant":"range","operator":"isBetween"}]'
+            ),
+            sort='[{"id":"amount","desc":true}]',
+        ),
+    )
+
+    assert [item.id for item in result.items] == [3, 2, 1]
+    assert result.total_items == 3
+
+
+def test_negative_text_filter_keeps_null_rows(session: Session):
+    result = paginate(
+        session,
+        FilterParams(
+            filters=(
+                '[{"id":"name","value":"Alpha",'
+                '"variant":"text","operator":"notILike"}]'
+            )
+        ),
+    )
+
+    assert {item.id for item in result.items} == {2, 3}
+
+
+@pytest.mark.parametrize(
+    ("filters", "detail"),
+    [
+        ("not-json", "`filters` is not valid JSON"),
+        (
+            '[{"id":"secret","value":"x","variant":"text",'
+            '"operator":"eq"}]',
+            "`secret` is not filterable",
+        ),
+    ],
+)
+def test_invalid_filters_fail_loudly(
+    session: Session, filters: str, detail: str
+):
+    with pytest.raises(HTTPException) as exc:
+        paginate(session, FilterParams(filters=filters))
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == detail
+
+
+def test_page_past_the_end_is_rejected(session: Session):
+    with pytest.raises(HTTPException) as exc:
+        paginate(session, FilterParams(page=3, page_size=2))
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Page number exceeds total pages"

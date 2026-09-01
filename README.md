@@ -11,6 +11,18 @@ A role-based dashboard app boilerplate (user / admin). Built as a **monorepo** w
 | Database | PostgreSQL 16 (SQLAlchemy + Alembic) |
 | File Storage | S3-compatible (MinIO / AWS S3) |
 
+## Included Foundation
+
+- Database-backed multi-role and scope authorization. JWTs carry identity;
+  effective permissions are resolved from the database on each request.
+- Role-aware navigation with separate full-tree and current-user endpoints.
+- URL-driven data tables with server pagination, search, advanced filters,
+  multi-column sorting, column pinning, visibility, and persisted layout.
+- Matching FastAPI filter/sort parsing with explicit column whitelists and
+  deterministic pagination ordering.
+- Shared dashboard shell, responsive sidebar, sticky account header,
+  accessible dialogs/tooltips, and reusable page headers.
+
 ## Prerequisites
 
 | Requirement | Minimum Version | Used For |
@@ -101,7 +113,31 @@ npm run fastapi
 npm run dev
 ```
 
+The backend npm scripts resolve Python from `.venv` automatically on
+macOS/Linux and Windows, so they do not depend on shell activation state.
+
 Then open `http://localhost:3030` in your browser.
+
+## Verification
+
+Run these before opening a pull request:
+
+```sh
+npm run typecheck
+npm run lint
+npm run build
+
+# Requires the PostgreSQL test database configured in .env
+pytest api/tests/
+
+# Fast, database-independent pagination contract tests
+pytest api/tests_unit/test_pagination_core.py
+```
+
+The advanced table UI serializes `filters`, `sort`, and `joinOperator` in the
+URL. Backend list endpoints opt into those controls by passing explicit
+`filter_map` and `sort_map` dictionaries to `paginate_select()`. Unknown column
+ids return `400` instead of being ignored.
 
 ### Port reference
 
@@ -109,7 +145,7 @@ Then open `http://localhost:3030` in your browser.
 | --- | --- |
 | Frontend | http://localhost:3030 |
 | Backend (API) | http://localhost:8080 |
-| API docs (Swagger) | http://localhost:8080/api/docs |
+| API docs (Swagger) | http://localhost:8080/docs |
 | MinIO console | http://localhost:9001 |
 
 ## Environment Variables

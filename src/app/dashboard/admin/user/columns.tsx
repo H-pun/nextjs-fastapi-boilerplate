@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 
 import { ColumnDef } from "@tanstack/react-table";
 
@@ -22,61 +24,105 @@ export const getColumns = (
     accessorKey: "id",
     header: "ID",
     enableSorting: false,
+    meta: { label: "ID" },
   },
   {
     accessorKey: "identifier",
-    header: "Identifier",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Identifier" />
+    ),
     enableHiding: false,
+    meta: { label: "Identifier" },
   },
   {
     accessorKey: "name",
-    header: "Name",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Name" />
+    ),
+    cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     enableHiding: false,
+    meta: { label: "Name" },
   },
   {
     accessorKey: "email",
-    header: "Email",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Email" />
+    ),
+    cell: ({ row }) => row.original.email || "—",
+    meta: { label: "Email" },
   },
   {
     accessorKey: "username",
-    header: "Username",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Username" />
+    ),
+    meta: { label: "Username" },
   },
   {
     id: "roles",
     header: "Roles",
     enableSorting: false,
+    meta: { label: "Roles" },
     cell: ({ row }) =>
-      row.original.roles?.map((role) => role.name).join(", ") || "—",
+      row.original.roles?.length ? (
+        <div className="flex flex-wrap gap-1">
+          {row.original.roles.map((role) => (
+            <Badge key={role.id} variant="secondary" className="capitalize">
+              {role.name}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        "—"
+      ),
   },
   {
     accessorKey: "phone",
-    header: "Phone",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Phone" />
+    ),
+    cell: ({ row }) => row.original.phone || "—",
+    meta: { label: "Phone" },
   },
   {
     accessorKey: "createdAt",
-    header: "Created At",
-    cell: ({ row }) => format(new Date(row.original.createdAt), "d MMM yyyy HH:mm"),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Created" />
+    ),
+    cell: ({ row }) =>
+      format(new Date(row.original.createdAt), "d MMM yyyy HH:mm"),
+    meta: { label: "Created at" },
   },
   {
     accessorKey: "updatedAt",
-    header: "Updated At",
-    cell: ({ row }) => format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm"),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Updated" />
+    ),
+    cell: ({ row }) =>
+      format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm"),
+    meta: { label: "Updated at" },
   },
   {
     id: "actions",
     enableHiding: false,
+    enableSorting: false,
+    size: 48,
     cell: ({ row }) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost" className="text-muted-foreground">
             <Ellipsis />
+            <span className="sr-only">Actions for {row.original.name}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => onEdit(row.original)}>
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onDelete(row.original)}>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => onDelete(row.original)}
+          >
             Delete
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onResetPassword(row.original)}>

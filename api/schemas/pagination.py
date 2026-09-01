@@ -1,11 +1,38 @@
 from fastapi import Query
-from typing import Annotated, Generic, Literal, TypeVar, List
+from typing import Annotated, Any, Generic, Literal, TypeVar, List
 from pydantic import BaseModel, Field
 from sqlalchemy import asc, desc
 from sqlalchemy.orm import Query as SqlQuery
 from fastapi import HTTPException
 
 T = TypeVar("T", bound=BaseModel)
+
+# Mirrors src/config/data-table.ts on the frontend. Kept as plain literals so a
+# new operator on either side shows up as a validation error, not silent
+# mis-filtering.
+FilterOperator = Literal[
+    "iLike", "notILike", "eq", "ne", "inArray", "notInArray",
+    "isEmpty", "isNotEmpty", "lt", "lte", "gt", "gte",
+    "isBetween", "isRelativeToToday",
+]
+FilterVariant = Literal[
+    "text", "number", "range", "date", "dateRange",
+    "boolean", "select", "multiSelect",
+]
+
+
+class FilterItem(BaseModel):
+    """One condition from the data-table filter list."""
+
+    id: str
+    value: Any = None
+    variant: FilterVariant = "text"
+    operator: FilterOperator = "iLike"
+
+
+class SortItem(BaseModel):
+    id: str
+    desc: bool = False
 
 
 class FilterParams(BaseModel):
@@ -15,6 +42,14 @@ class FilterParams(BaseModel):
     search: str | None = None
     order_by: str | None = None
     order_direction: Literal["asc", "desc"] = Field("asc", description="Sort direction: 'asc' or 'desc'")
+
+    # Advanced filtering / multi-sort. Both arrive JSON-encoded because that is
+    # how the data-table serialises them into the URL.
+    filters: str | None = Field(
+        None, description='JSON: [{"id","value","variant","operator"}]'
+    )
+    sort: str | None = Field(None, description='JSON: [{"id","desc"}]')
+    join_operator: Literal["and", "or"] = "and"
 
 
 class Pagination(BaseModel, Generic[T]):
