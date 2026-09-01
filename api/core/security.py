@@ -9,7 +9,18 @@ from api.core.config import settings
 
 
 class TokenPayload(BaseModel):
-    sub: UUID | None = None
+    """Claims this app relies on.
+
+    `sub` is a plain string, not a UUID: an external provider issues whatever
+    subject it likes — an email for Keycloak, a numeric id for Google — and
+    typing it as UUID would reject those tokens before any logic runs.
+
+    Permissions are deliberately absent. They are read from the database on
+    each request (see `get_current_user`), so a token carrying stale scopes
+    cannot grant anything.
+    """
+
+    sub: str | None = None
     exp: int | None = None
     iat: int | None = None
 
@@ -34,8 +45,8 @@ def decode_access_token(token: str) -> TokenPayload:
     return TokenPayload(**payload)
 
 
-def get_id_from_header(token: dict[str, str]) -> int:
-    return decode_access_token(token["Authorization"].split(" ")[1]).sub
+def get_id_from_header(token: dict[str, str]) -> UUID:
+    return UUID(decode_access_token(token["Authorization"].split(" ")[1]).sub)
 
 
 def verify_password(hashed_password: str, plain_password: str) -> bool:

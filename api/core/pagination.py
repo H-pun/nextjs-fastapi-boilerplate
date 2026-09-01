@@ -1,4 +1,5 @@
 # helpers/pagination.py
+from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import Any, Dict, Optional, Sequence, TypeVar
 from sqlalchemy import Select, func, or_, cast, String
@@ -85,6 +86,12 @@ def paginate_select(
     # 3) total count via subquery (hapus ORDER BY agar efisien/valid)
     count_stmt = func.count().select().select_from(working.order_by(None).subquery())
     total_items = session.execute(count_stmt).scalar_one()
+
+    # Asking past the end is a client mistake, not an empty result — say so,
+    # matching Pagination.from_query. Page 1 is always valid, even when empty.
+    max_page = (total_items + filters.page_size - 1) // filters.page_size if total_items else 1
+    if filters.page > max_page:
+        raise HTTPException(status_code=400, detail="Page number exceeds total pages")
 
     # 4) paging
     offset = (filters.page - 1) * filters.page_size

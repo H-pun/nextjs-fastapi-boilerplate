@@ -18,5 +18,6 @@ def seed_all(engine=core_engine, minimal=False):
 
 
 # py -m api.seeder
+# alembic revision --autogenerate -m "message"
 if __name__ == "__main__":
     seed_all()

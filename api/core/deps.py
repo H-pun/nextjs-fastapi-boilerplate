@@ -1,19 +1,18 @@
 import boto3
 from mypy_boto3_s3.client import S3Client
-
 from collections.abc import Generator
 from functools import lru_cache
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, SecurityScopes
 from sqlalchemy.orm import Session
 
 from api.core.security import decode_access_token, TokenPayload
 from api.core.db import engine
 from api.core.config import settings
 from api.database import User
-from api.schemas.user import UserRole
 
 bearer_scheme = HTTPBearer(
     description="Please insert JWT with Bearer into field",
@@ -55,13 +54,39 @@ TokenDep = Annotated[TokenPayload, Depends(get_token)]
 S3ClientDep = Annotated[S3Client, Depends(get_s3_client)]
 
 
-def get_current_user(session: SessionDep, token: TokenDep) -> User:
-    return session.query(User).filter(User.id == token.sub).one()
+def get_current_user(
+    security_scopes: SecurityScopes,
+    session: SessionDep,
+    token: TokenDep,
+) -> User:
+    """Resolve the caller and check they hold every required scope.
 
+    Scopes come from the database, not from the token. Loading the user already
+    pulls roles and scopes in the same round trip (`lazy="selectin"`), so this
+    costs nothing extra and makes a revoked permission take effect immediately
+    rather than whenever the token happens to expire.
+    """
+    # `sub` is a string so that an external provider's subject can be carried
+    # unchanged; locally issued tokens hold this app's own user id.
+    try:
+        user_id = UUID(token.sub) if token.sub else None
+    except ValueError:
+        user_id = None
 
-def only_admin(user: User) -> User:
-    if user.role != UserRole.ADMIN and settings.ENVIRONMENT != "development":
-        raise HTTPException(status_code=403, detail="Forbidden: Only admins can perform this action")
+    user = session.get(User, user_id) if user_id else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if security_scopes.scopes:
+        held = user.scope_keys
+        missing = [s for s in security_scopes.scopes if s not in held]
+        if missing:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Forbidden: missing scope {', '.join(missing)}",
+                headers={"WWW-Authenticate": f'Bearer scope="{security_scopes.scope_str}"'},
+            )
+
     return user
 
 

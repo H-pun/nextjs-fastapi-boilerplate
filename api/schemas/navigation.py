@@ -1,9 +1,5 @@
 from uuid import UUID
-from fastapi import Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-from api.schemas.user import UserRole
-
+from pydantic import BaseModel, ConfigDict, Field
 
 class Navigation(BaseModel):
     id: UUID
@@ -12,15 +8,14 @@ class Navigation(BaseModel):
     icon: str | None = None
     order: int
     external: bool
+    group: str | None = None
+    scope_id: UUID | None = None
     model_config = ConfigDict(
         from_attributes=True
     )
 
-
 class GetNavigationResponse(Navigation):
     children: list[Navigation] = []
 
-
 class SaveNavigationRequest(BaseModel):
-    role: UserRole = Field(...)
     navigations: list[GetNavigationResponse] = Field(...)

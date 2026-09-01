@@ -1,9 +1,11 @@
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from uuid import uuid4
 
-from api.database import User
+from api.database import User, Role
 from api.core.security import verify_password, get_id_from_header
+from api.seeds.users import MEMBER_ROLE_ID
 
 base_url = "/user"
 
@@ -24,22 +26,25 @@ def test_auth_fail(client: TestClient):
     assert r.status_code == 401
 
 
-def test_create_user(client: TestClient, db: Session):
+def test_create_user(client: TestClient, db: Session, user_token: dict[str, str]):
     data = {
         "identifier": "1234567890",
         "name": "New User",
         "email": "user@test.com",
         "username": "newuser",
         "password": "newpassword",
-        "role": 1
+        "role_ids": [str(MEMBER_ROLE_ID)],
     }
-    r = client.post(base_url, json=data)
+    r = client.post(base_url, json=data, headers=user_token)
     assert r.status_code == 201
 
-    user_db = db.query(User).filter_by(username=data["username"]).first()
+    user_db = db.execute(select(User).where(User.username == data["username"])).scalar_one_or_none()
     assert user_db
     assert user_db.email == data["email"]
     assert verify_password(user_db.password, data["password"])
+    assert [role.id for role in user_db.roles] == [MEMBER_ROLE_ID]
+    # Local sign-in is recorded as an identity, ready for a provider to join it.
+    assert [i.provider for i in user_db.identities] == ["local"]
 
 
 def test_update_user(client: TestClient, db: Session, user_token: dict[str, str]):
@@ -52,12 +57,13 @@ def test_update_user(client: TestClient, db: Session, user_token: dict[str, str]
     assert r.status_code == 200
     assert r.json()["message"] == "success"
 
-    updated_user = db.query(User).filter_by(id=user_id).first()
+    updated_user = db.get(User, user_id)
     assert updated_user.email == new_data["email"]
     assert updated_user.username == new_data["username"]
 
 
-def test_delete_user(client: TestClient, db: Session):
+def test_delete_user(client: TestClient, db: Session, user_token: dict[str, str]):
+    member = db.get(Role, MEMBER_ROLE_ID)
     # Setup: create dummy user
     user = User(
         id=uuid4(),
@@ -66,14 +72,15 @@ def test_delete_user(client: TestClient, db: Session):
         password="temporary",
         identifier="9999999999",
     )
+    user.roles = [member]
     db.add(user)
     db.commit()
     db.refresh(user)
 
     # Act
-    r = client.delete(f"{base_url}/{user.id}")
+    r = client.delete(f"{base_url}/{user.id}", headers=user_token)
     assert r.status_code == 200
     assert r.json()["message"] == "success"
 
     # Assert: check user is gone
-    assert db.query(User).filter_by(id=user.id).first() is None
+    assert db.get(User, user.id) is None
