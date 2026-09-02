@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { PageHeader } from "@/components/page-header";
@@ -12,22 +11,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 
-import AvatarDialog from "./_components/avatar-dialog";
+import { AvatarUpload } from "./_components/avatar-upload";
 import ProfileForm from "./_components/profile-form";
 import PasswordForm from "./_components/password-form";
-
-import { getInitials } from "@/lib/utils";
-
-import { Camera } from "lucide-react";
 
 export default function AdminProfilePage() {
   const { data: session } = useSession();
   const user = session?.user;
-  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
 
   if (!user) {
     return (
@@ -57,20 +50,7 @@ export default function AdminProfilePage() {
           <Card>
             <CardHeader>
               <div className="flex flex-col items-center">
-                <div
-                  className="group relative cursor-pointer"
-                  onClick={() => setAvatarDialogOpen(true)}
-                >
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage src={avatarSrc} alt={user.name} />
-                    <AvatarFallback className="bg-muted text-2xl">
-                      {getInitials(user.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Camera className="h-6 w-6 text-white" />
-                  </div>
-                </div>
+                <AvatarUpload name={user.name} avatarSrc={avatarSrc} />
                 <CardTitle className="mt-4 text-center">{user.name}</CardTitle>
                 <CardDescription className="text-center">
                   {user.identifier}
@@ -115,11 +95,6 @@ export default function AdminProfilePage() {
           </Card>
         </div>
       </div>
-
-      <AvatarDialog
-        open={avatarDialogOpen}
-        onOpenChange={setAvatarDialogOpen}
-      />
     </div>
   );
 }
