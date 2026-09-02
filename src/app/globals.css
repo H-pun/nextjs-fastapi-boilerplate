@@ -185,3 +185,9 @@
       #0f2028;
   }
 }
+
+@keyframes bar-fill {
+  from {
+    transform: scaleX(0);
+  }
+}

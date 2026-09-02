@@ -1,139 +1,74 @@
-"use client"
-
-import Link from "next/link";
+import type { Metadata } from "next";
 import Image from "next/image";
-import { Suspense } from "react";
-import { useForm } from "react-hook-form";
-import { useRouter, useSearchParams } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { signIn } from "next-auth/react";
+import Link from "next/link";
 
-import {
-  Banner,
-  BannerClose,
-  BannerIcon,
-  BannerTitle,
-} from "@/components/ui/banner";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { PasswordInput } from "@/components/ui/password-input"
-import { Spinner } from "@/components/ui/spinner"
-import { AlertCircle } from "lucide-react";
-import { loginSchema, LoginForm } from "@/lib/types/user";
+import { LoginForm } from "./_components/login-form";
+import { LoginHero } from "./_components/login-hero";
+import { ThemeMenu } from "./_components/theme-menu";
 
-function LoginContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl");
+export const metadata: Metadata = {
+  title: "Sign in — Boilerplate",
+};
 
-  const form = useForm({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-    },
-  });
+const GITHUB_REPO = "https://github.com/H-pun/nextjs-fastapi-boilerplate";
 
-  const onSubmit = async (data: LoginForm) => {
-    await signIn("credentials", {
-      redirect: false,
-      ...data,
-    }).then((res) => {
-      if (res?.ok) {
-        router.replace(callbackUrl || "/dashboard");
-      } else {
-        form.setError("root", {
-          message: res?.error || "Something went wrong",
-        });
-      }
-    });
-  };
+/** Only allow same-origin paths, so `?callbackUrl=https://evil.com` can't redirect off-site. */
+const resolveCallbackUrl = (url: string | string[] | undefined) =>
+  typeof url === "string" && url.startsWith("/") && !url.startsWith("//")
+    ? url
+    : "/dashboard";
 
-  const isLoading = form.formState.isSubmitting;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string | string[] }>;
+}) {
+  const callbackUrl = resolveCallbackUrl((await searchParams).callbackUrl);
 
   return (
-    <div className="flex h-screen flex-col items-center justify-center gap-6 bg-login">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <Link href={"/"} className="self-center">
-          <Image
-            src="/images/logo-nyamping.svg"
-            alt="Logo"
-            width={160}
-            height={48}
-            className="h-auto object-contain"
-          />
-        </Link>
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl">Welcome back</CardTitle>
-              <CardDescription>
-                Login with your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor="username">Username</FieldLabel>
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="Username"
-                      {...form.register("username")}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="password">Password</FieldLabel>
-                    <PasswordInput
-                      id="password"
-                      {...form.register("password")}
-                    />
-                  </Field>
-                  {form.formState.errors.root && (
-                    <Banner className="border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
-                      <BannerIcon icon={AlertCircle} />
-                      <BannerTitle>{form.formState.errors.root.message}</BannerTitle>
-                      <BannerClose className="hover:text-current" />
-                    </Banner>
-                  )}
-                  <Field>
-                    <Button type="submit" disabled={isLoading} className="bg-linear-to-r from-sky-500 to-teal-400 text-white hover:from-sky-600 hover:to-teal-500 dark:from-sky-800 dark:to-teal-700 dark:hover:from-sky-700 dark:hover:to-teal-600">
-                      {isLoading && <Spinner />}
-                      {isLoading ? "Logging in..." : "Login"}
-                    </Button>
-                  </Field>
-                </FieldGroup>
-              </form>
-            </CardContent>
-          </Card>
-          <FieldDescription className="px-6 text-center">
-            By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-            and <a href="#">Privacy Policy</a>.
-          </FieldDescription>
+    <div className="bg-background flex min-h-screen flex-col lg:flex-row">
+      <LoginHero />
+
+      <div className="flex flex-1 flex-col px-6 py-8 sm:px-12 lg:px-16 lg:py-10">
+        <header className="flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/images/logo.svg"
+              alt=""
+              width={28}
+              height={28}
+              className="size-7 dark:invert"
+            />
+            <span className="text-sm font-semibold">Boilerplate</span>
+          </Link>
+          <ThemeMenu />
+        </header>
+
+        <div className="flex flex-1 items-center justify-center py-12">
+          <div className="w-full max-w-[352px]">
+            <h1 className="text-foreground text-3xl leading-[1.2] font-semibold tracking-[-0.02em]">
+              Sign in to Boilerplate
+            </h1>
+            <p className="text-muted-foreground mt-2 text-sm">
+              Use your account credentials to continue.
+            </p>
+
+            <LoginForm callbackUrl={callbackUrl} />
+          </div>
         </div>
+
+        <footer className="text-muted-foreground flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <span>© {new Date().getFullYear()} Boilerplate</span>
+          <Link
+            href={GITHUB_REPO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            View on GitHub
+          </Link>
+        </footer>
       </div>
     </div>
-  )
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <LoginContent />
-    </Suspense>
   );
 }

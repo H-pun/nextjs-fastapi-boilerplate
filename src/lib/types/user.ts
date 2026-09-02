@@ -77,6 +77,11 @@ export function scopeKeys(user?: Pick<UserData, "roles">): Set<string> {
   return new Set(user?.roles?.flatMap((role) => role.scopes.map((s) => s.key)) ?? []);
 }
 
+/** Whether a user holds the admin scope used for `/dashboard/admin/*` routes. */
+export function hasAdminScope(user?: Pick<UserData, "roles">): boolean {
+  return scopeKeys(user).has("user:manage");
+}
+
 export type LoginForm = z.infer<typeof loginSchema>;
 export type UserForm = z.infer<typeof userSchema>;
 export type PasswordForm = z.infer<typeof passwordSchema>;
