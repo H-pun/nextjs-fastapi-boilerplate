@@ -147,7 +147,6 @@ src/
     axios.ts    # Axios instance
   hooks/
     use-data-table.ts         # Canonical URL-driven TanStack Table hook
-    use-server-data-table.ts  # Compatibility hook for the User screen
 ```
 
 ## Architecture
@@ -159,8 +158,6 @@ src/
 - `src/app/`: Next.js App Router pages and layouts.
 - `src/components/data-table/`: canonical advanced table components.
 - `src/hooks/use-data-table.ts`: canonical URL-driven TanStack Table hook.
-- `src/hooks/use-server-data-table.ts`: compatibility hook for the existing
-  User screen; prefer the canonical hook for new pages.
 
 ## Working Rules
 
