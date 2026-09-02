@@ -14,13 +14,13 @@ NAV_ACCESS = UUID("11111111-1111-1111-1111-111111111103")
 NAV_MENU = UUID("11111111-1111-1111-1111-111111111104")
 NAV_DOCS = UUID("11111111-1111-1111-1111-111111111105")
 
-# (id, title, url, icon, group, scope key or None for everyone)
+# (id, title, url, icon, group, scope key or None for everyone, external)
 MENU = [
-    (NAV_HOME, "Home", "/dashboard", "home", "Overview", None),
-    (NAV_USER, "User Management", "/dashboard/admin/user", "users", "Administration", "user:manage"),
-    (NAV_ACCESS, "Access Control", "/dashboard/admin/profile-feature", "shield", "Administration", "user:manage"),
-    (NAV_MENU, "Menu Management", "/dashboard/admin/navigation", "signpost", "Administration", "navigation:manage"),
-    (NAV_DOCS, "API Docs", "/dashboard/admin/docs", "file-code", "Administration", "user:manage"),
+    (NAV_HOME, "Home", "/dashboard", "home", "Overview", None, False),
+    (NAV_USER, "User Management", "/dashboard/admin/user", "users", "Administration", "user:manage", False),
+    (NAV_ACCESS, "Access Control", "/dashboard/admin/profile-feature", "shield", "Administration", "user:manage", False),
+    (NAV_MENU, "Menu Management", "/dashboard/admin/navigation", "signpost", "Administration", "navigation:manage", False),
+    (NAV_DOCS, "API Docs", "/dashboard/admin/docs", "file-code", "Administration", "user:manage", True),
 ]
 
 
@@ -31,9 +31,11 @@ def seed_navigation(db: Session) -> None:
         scope.key: scope.id for scope in db.scalars(select(Scope)).all()
     }
 
-    for order, (nav_id, title, url, icon, group, scope_key) in enumerate(MENU):
+    for order, (nav_id, title, url, icon, group, scope_key, external) in enumerate(MENU):
         nav = db.get(Navigation, nav_id)
         if nav:
+            if external and not nav.external:
+                nav.external = True
             continue
         db.add(Navigation(
             id=nav_id,
@@ -43,6 +45,7 @@ def seed_navigation(db: Session) -> None:
             group=group,
             order=order,
             scope_id=scope_ids.get(scope_key) if scope_key else None,
+            external=external,
         ))
 
     db.flush()

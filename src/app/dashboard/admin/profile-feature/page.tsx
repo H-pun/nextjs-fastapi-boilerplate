@@ -351,7 +351,7 @@ export default function Page() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeader
         title="Roles & Permissions"
         description="Scopes granted per role. Frontend visibility only — the API enforces authorization."

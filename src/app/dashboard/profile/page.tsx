@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 
+import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
@@ -12,7 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 
 import AvatarDialog from "./_components/avatar-dialog";
 import ProfileForm from "./_components/profile-form";
@@ -20,7 +22,7 @@ import PasswordForm from "./_components/password-form";
 
 import { getInitials } from "@/lib/utils";
 
-import { Camera, Loader2 } from "lucide-react";
+import { Camera } from "lucide-react";
 
 export default function AdminProfilePage() {
   const { data: session } = useSession();
@@ -31,7 +33,7 @@ export default function AdminProfilePage() {
     return (
       <div className="mx-auto my-auto">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <Spinner className="size-8" />
           <p className="text-sm">Loading Profile...</p>
         </div>
       </div>
@@ -43,17 +45,11 @@ export default function AdminProfilePage() {
     : undefined;
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 p-4">
-      <div className="flex flex-col space-y-1">
-        <h1 className="text-2xl font-semibold capitalize tracking-tight">
-          Account Settings
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your personal information and settings
-        </p>
-      </div>
-
-      <Separator />
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <PageHeader
+        title="Account Settings"
+        description="Manage your personal information and settings"
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: Summary */}
@@ -67,7 +63,7 @@ export default function AdminProfilePage() {
                 >
                   <Avatar className="h-24 w-24">
                     <AvatarImage src={avatarSrc} alt={user.name} />
-                    <AvatarFallback className="bg-red-100 text-2xl text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                    <AvatarFallback className="bg-muted text-2xl">
                       {getInitials(user.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -81,12 +77,9 @@ export default function AdminProfilePage() {
                 </CardDescription>
                 <div className="mt-2 flex flex-wrap justify-center gap-1">
                   {user.roles?.map((role) => (
-                    <span
-                      key={role.id}
-                      className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium capitalize text-red-800 dark:bg-red-900 dark:text-red-200"
-                    >
+                    <Badge key={role.id} variant="secondary" className="capitalize">
                       {role.name.toLowerCase()}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>

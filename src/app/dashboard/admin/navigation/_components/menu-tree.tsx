@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { Info } from "lucide-react";
 
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+
 import type { Navigation } from "@/lib/types/navigation";
 
 import { SortableList } from "./sortable-list";
@@ -123,11 +130,18 @@ export function MenuTree({
   return (
     <div className="flex flex-col gap-2">
       {visible?.size === 0 ? (
-        <p className="text-muted-foreground px-2 py-6 text-center text-sm">
-          {query
-            ? `No menu matches “${search.trim()}”.`
-            : "This role sees no menu at all — its sidebar would be empty."}
-        </p>
+        <Empty className="border-none py-4">
+          <EmptyHeader>
+            <EmptyTitle className="text-sm font-medium">
+              {query ? "No matching menus" : "No menus for this role"}
+            </EmptyTitle>
+            <EmptyDescription>
+              {query
+                ? `No menu matches “${search.trim()}”.`
+                : "This role sees no menu at all — its sidebar would be empty."}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         // No scroll container: the whole menu is meant to be readable at a
         // glance, and the detail pane sticks instead.

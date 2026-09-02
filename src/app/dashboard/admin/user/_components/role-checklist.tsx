@@ -4,6 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getRoles } from "@/lib/api/access";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,9 +46,14 @@ export function RoleChecklist({
 
   if (roles.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        No roles yet. Create one under Access Control first.
-      </p>
+      <Empty className="border-none py-2">
+        <EmptyHeader>
+          <EmptyTitle className="text-sm font-medium">No roles yet</EmptyTitle>
+          <EmptyDescription>
+            Create one under Access Control first.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 

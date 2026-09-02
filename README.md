@@ -199,6 +199,7 @@ All variables below go in the single `.env` file. Example values are for **local
 
 ## Notes
 
+- **AI agent instructions** live in [`AGENTS.md`](AGENTS.md). [`CLAUDE.md`](CLAUDE.md) is a pointer to that file for tools that expect it.
 - **Windows / PowerShell:** if `npm` or venv activation fails with *"running scripts is disabled"*, allow scripts for your user once:
 ```sh
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser

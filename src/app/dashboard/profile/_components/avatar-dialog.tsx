@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -24,6 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Slider } from "@/components/ui/slider";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 
 import { updateAvatar } from "@/lib/api/user";
@@ -31,7 +33,6 @@ import { cn } from "@/lib/utils";
 
 import {
   Lightbulb,
-  Loader2,
   RotateCcw,
   Trash2,
   ZoomIn,
@@ -213,6 +214,9 @@ export default function AvatarDialog({
       <DialogContent className="gap-4 p-0 sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="px-6 pt-6">Update Avatar</DialogTitle>
+          <DialogDescription className="sr-only">
+            Crop and upload a new profile picture.
+          </DialogDescription>
         </DialogHeader>
         <div className="px-6">
           {!file ? (
@@ -408,7 +412,7 @@ export default function AvatarDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!file || uploading}>
-            {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {uploading && <Spinner />}
             Save
           </Button>
         </DialogFooter>

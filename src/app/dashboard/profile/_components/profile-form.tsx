@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 import { userSchema } from "@/lib/types/user";
 import { getCurrentUser, updateUser } from "@/lib/api/user";
@@ -85,7 +86,8 @@ export default function ProfileForm() {
       </Field>
 
       <Button type="submit" disabled={isLoading}>
-        <Save className="mr-2 h-4 w-4" />
+        {isPending && <Spinner />}
+        {!isPending && <Save className="mr-2 h-4 w-4" />}
         Save Changes
       </Button>
     </form>
