@@ -82,7 +82,6 @@ const defaultValues: UserForm = {
   identifier: "",
   email: "",
   username: "",
-  phone: "",
   password: "",
   roleIds: [],
 };
@@ -153,7 +152,6 @@ export default function Page() {
           name: data.name,
           email: data.email || "",
           username: data.username,
-          phone: data.phone || "",
           password: "",
           roleIds: data.roles.map((role) => role.id),
         });
@@ -446,21 +444,6 @@ export default function Page() {
                     {...register("username")}
                   />
                   <FieldError errors={[errors.username]} />
-                </Field>
-
-                <Field data-invalid={!!errors.phone}>
-                  <FieldLabel htmlFor="phone">Phone</FieldLabel>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    maxLength={15}
-                    disabled={isLoading}
-                    {...register("phone")}
-                  />
-                  <FieldDescription>
-                    Enter with country code, e.g., +628123456789
-                  </FieldDescription>
-                  <FieldError errors={[errors.phone]} />
                 </Field>
 
                 {state === "Add" && (

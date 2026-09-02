@@ -29,7 +29,6 @@ export default function ProfileForm() {
     defaultValues: {
       email: "",
       username: "",
-      phone: "",
     },
   });
 
@@ -56,7 +55,6 @@ export default function ProfileForm() {
         id: data.id,
         email: data.email || "",
         username: data.username,
-        phone: data.phone || "",
       });
     }
   }, [data, reset]);
@@ -76,13 +74,6 @@ export default function ProfileForm() {
         <FieldLabel htmlFor="email">Email</FieldLabel>
         <Input id="email" type="email" {...register("email")} disabled={isLoading} />
         <FieldError errors={[errors.email]} />
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="phone">Phone</FieldLabel>
-        <Input id="phone" type="tel" inputMode="numeric" {...register("phone")} disabled={isLoading} />
-        <FieldDescription>Enter with country code, e.g., +628123456789</FieldDescription>
-        <FieldError errors={[errors.phone]} />
       </Field>
 
       <Button type="submit" disabled={isLoading}>

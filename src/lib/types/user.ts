@@ -10,9 +10,6 @@ export const userSchema = z.object({
   name: z.string().min(1, "Name is required").optional(),
   username: z.string().min(1, "Username is required"),
   email: z.email("Invalid email address").or(z.literal("")),
-  // The backend caps this at 15 chars but does not enforce a dialling format,
-  // so neither does this — z.e164() rejected numbers the API accepts.
-  phone: z.string().max(15, "Phone must be at most 15 characters").or(z.literal("")),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters long")
@@ -61,10 +58,8 @@ export interface UserData {
   name: string;
   username: string;
   email?: string;
-  phone?: string;
   roles: Role[];
   avatar?: string;
-  cohort?: number;
   accessToken?: string;
   createdAt: Date;
   updatedAt: Date;
