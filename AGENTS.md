@@ -470,15 +470,65 @@ Use `src/components/data-table/` with `useDataTable` — not the legacy
 A page should have one owner for each query key: controls write the URL, while
 data fetching reads that resulting URL state.
 
-**Fetching pattern** — `useDataTable` owns nuqs writes; the page reads the URL
-back with `useTableUrlState()` and passes the result to TanStack Query. Do not
-mount a second nuqs owner for the same keys.
+**Fetching pattern (infinite scroll)** — default for table pages. `useDataTable`
+owns nuqs writes; the page reads URL state with `useTableUrlState()` and loads
+data through `useInfiniteTableQuery`. Chunk size is fixed at
+`dataTableConfig.infiniteTableChunkSize` (50) — not shown in the UI. Server-side
+**group by** works in infinite mode via Settings → Group. Do not mount a second
+nuqs owner for the same keys.
 
 ```tsx
-import { useTableUrlState, toQueryParams } from "@/hooks/use-table-url-state";
+import { useInfiniteTableQuery } from "@/hooks/use-infinite-table-query";
+import {
+  toInfiniteQueryParams,
+  useTableUrlState,
+} from "@/hooks/use-table-url-state";
 
 const tableState = useTableUrlState();
 
+const {
+  rows,
+  totalItems,
+  groupSummaries,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
+  isLoading,
+  isFetching,
+  refetch,
+} = useInfiniteTableQuery({
+  queryKey: ["users", tableState.search, tableState.groupBy, /* … */],
+  queryFn: (page) => getUsers(toInfiniteQueryParams(tableState, page)),
+});
+
+const { table } = useDataTable({
+  data: rows,
+  pageCount: -1,
+  rowCount: totalItems,
+  paginationMode: "infinite",
+  enableAdvancedFilter: true,
+});
+
+<DataTable
+  table={table}
+  groupSummaries={groupSummaries}
+  infinite={{
+    onLoadMore: () => void fetchNextPage(),
+    hasNextPage: Boolean(hasNextPage),
+    isFetchingNextPage,
+    totalItems,
+    loadedCount: rows.length,
+  }}
+/>
+```
+
+The infinite footer only shows a spinner while the next chunk loads — no page
+buttons or load-size selector.
+
+**Page-button pagination** — use `paginationMode: "pages"` (default) with
+`useQuery` for small tables or when you prefer explicit page navigation:
+
+```tsx
 const { data, isFetching, refetch } = useQuery({
   queryKey: ["users", tableState],
   queryFn: () => getUsers(toQueryParams(tableState)),
@@ -492,9 +542,9 @@ const { table } = useDataTable({
 });
 ```
 
-Table pages use `DataTableAdvancedToolbar` with `DataTableSearch`,
-`DataTableFilterList`, and `DataTableSortList` — see
-`src/app/dashboard/admin/user/page.tsx` as the reference implementation.
+Table pages use `DataTableAdvancedToolbar` with `DataTableSearch` and the
+property bar — see `src/app/dashboard/admin/user/page.tsx` as the reference
+implementation.
 
 ### shadcn/ui preset
 
