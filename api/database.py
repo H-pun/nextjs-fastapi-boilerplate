@@ -1,12 +1,11 @@
 from uuid import UUID, uuid4
-from typing import Dict, Any, List
+from typing import List
 from datetime import datetime
 from sqlalchemy import (
     CheckConstraint, DateTime, ForeignKey, func, String, Table, Column,
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import JSONB
 
 
 class Base(DeclarativeBase):
@@ -88,9 +87,7 @@ class User(Base):
     password: Mapped[str] = mapped_column(nullable=True)
     email: Mapped[str] = mapped_column(unique=True, nullable=True)
     email_verified: Mapped[bool] = mapped_column(default=False)
-    phone: Mapped[str] = mapped_column(unique=True, nullable=True)
     avatar: Mapped[str] = mapped_column(nullable=True)
-    cohort: Mapped[int] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -118,7 +115,7 @@ class User(Base):
 class UserIdentity(Base):
     """How a user proves who they are. One user may hold several — Keycloak at
     the office, Google from home — all resolving to the same `users` row, and
-    therefore to one set of roles and one activity history.
+    therefore to one set of roles.
 
     Match on (provider, subject) only. Matching on email would hand the account
     to anyone who can register that address with the provider; link by email
@@ -136,20 +133,6 @@ class UserIdentity(Base):
     __table_args__ = (
         UniqueConstraint("provider", "subject", name="uq_identity_provider_subject"),
     )
-
-
-class ActivityLog(Base):
-    __tablename__ = "activity_logs"
-    id_user: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    ip_address: Mapped[str] = mapped_column()
-    user_agent: Mapped[str] = mapped_column()
-    path: Mapped[str] = mapped_column()
-    method: Mapped[str] = mapped_column()
-    status_code: Mapped[int] = mapped_column()
-    duration: Mapped[float] = mapped_column()
-    payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=True)
-    response: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Navigation(Base):

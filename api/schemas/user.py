@@ -29,9 +29,7 @@ class AuthenticateUserResponse(BaseModel):
     name: str
     username: str
     email: EmailStr | None = None
-    phone: str | None = None
     avatar: str | None = None
-    cohort: int | None = None
     access_token: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -44,8 +42,6 @@ class UpdateUserRequest(BaseModel):
     name: str | None = Field("", max_length=50, examples=['John Doe'])
     email: EmailStr | Literal[""] = Field("", examples=['johndoe@example.com'])
     username: str | None = Field("", max_length=25, pattern=r'^[a-zA-Z0-9]+$', examples=['johndoe'])
-    phone: str | None = Field("", max_length=15, examples=['+6281234567890'])
-    cohort: int | None = Field(None, ge=1900, le=2100, examples=[2022])
 
 class CreateUserRequest(BaseModel):
     identifier: str = Field(..., min_length=1, max_length=50, examples=['EMP-0001'])
@@ -53,7 +49,6 @@ class CreateUserRequest(BaseModel):
     username: str = Field(..., max_length=25, pattern=r'^[a-zA-Z0-9]+$', examples=['johndoe'])
     email: EmailStr | Literal[""] = Field("", examples=['johndoe@example.com'])
     password: str = Field(..., min_length=8, examples=['securepassword'])
-    phone: str | None = Field("", max_length=15, examples=['+6281234567890'])
     role_ids: list[UUID] = Field(..., min_length=1)
 
 class GetUserRequest(FilterQuery):

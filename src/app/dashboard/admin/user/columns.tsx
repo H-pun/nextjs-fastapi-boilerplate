@@ -4,7 +4,7 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { ColumnDef } from "@tanstack/react-table";
 
 import type { UserData } from "@/lib/types/user";
-import { AtSign, CalendarDays, Phone, Text } from "lucide-react";
+import { AtSign, CalendarDays, Text } from "lucide-react";
 import { format } from "date-fns";
 import {
   UserRowActions,
@@ -98,21 +98,6 @@ export const getColumns = (
       ) : (
         "—"
       ),
-  },
-  {
-    id: "phone",
-    accessorKey: "phone",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Phone" />
-    ),
-    cell: ({ row }) => row.original.phone || "—",
-    enableColumnFilter: true,
-    meta: {
-      label: "Phone",
-      placeholder: "Search phone...",
-      variant: "text",
-      icon: Phone,
-    },
   },
   {
     id: "createdAt",

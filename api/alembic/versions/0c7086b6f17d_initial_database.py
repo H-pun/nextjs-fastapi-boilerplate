@@ -9,7 +9,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '0c7086b6f17d'
@@ -45,31 +44,13 @@ def upgrade() -> None:
     sa.Column('password', sa.String(), nullable=True),
     sa.Column('email', sa.String(), nullable=True),
     sa.Column('email_verified', sa.Boolean(), nullable=False),
-    sa.Column('phone', sa.String(), nullable=True),
     sa.Column('avatar', sa.String(), nullable=True),
-    sa.Column('cohort', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('identifier'),
-    sa.UniqueConstraint('phone'),
     sa.UniqueConstraint('username')
-    )
-    op.create_table('activity_logs',
-    sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('id_user', sa.Uuid(), nullable=False),
-    sa.Column('ip_address', sa.String(), nullable=False),
-    sa.Column('user_agent', sa.String(), nullable=False),
-    sa.Column('path', sa.String(), nullable=False),
-    sa.Column('method', sa.String(), nullable=False),
-    sa.Column('status_code', sa.Integer(), nullable=False),
-    sa.Column('duration', sa.Float(), nullable=False),
-    sa.Column('payload', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('response', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['id_user'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('navigations',
     sa.Column('id', sa.Uuid(), nullable=False),
@@ -121,7 +102,6 @@ def downgrade() -> None:
     op.drop_table('user_identities')
     op.drop_table('role_scopes')
     op.drop_table('navigations')
-    op.drop_table('activity_logs')
     op.drop_table('users')
     op.drop_index(op.f('ix_scopes_key'), table_name='scopes')
     op.drop_table('scopes')

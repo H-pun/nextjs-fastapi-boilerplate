@@ -102,13 +102,12 @@ async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[Au
         since = datetime.now(timezone.utc) - timedelta(days=filters.updated_within)
         stmt = stmt.filter(User.updated_at >= since)
 
-    searchable = [User.name, User.identifier, User.email, User.username, User.phone]
+    searchable = [User.name, User.identifier, User.email, User.username]
     sort_map = {
         "identifier": User.identifier,
         "name": User.name,
         "email": User.email,
         "username": User.username,
-        "phone": User.phone,
         "created_at": User.created_at,
         "updated_at": User.updated_at,
         "createdAt": User.created_at,
@@ -119,7 +118,6 @@ async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[Au
         "name": User.name,
         "email": User.email,
         "username": User.username,
-        "phone": User.phone,
         "createdAt": User.created_at,
         "updatedAt": User.updated_at,
     }

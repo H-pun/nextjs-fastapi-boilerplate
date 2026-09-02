@@ -64,7 +64,6 @@ import { dataTableConfig } from "@/config/data-table";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { getDefaultFilterOperator, getFilterOperators } from "@/lib/data-table";
 import { formatDate } from "@/lib/format";
-import { generateId } from "@/lib/id";
 import { getFiltersStateParser } from "@/lib/parsers";
 import { cn } from "@/lib/utils";
 import type {
@@ -159,7 +158,7 @@ export function DataTableFilterList<TData>({
         operator: getDefaultFilterOperator(
           column.columnDef.meta?.variant ?? "text"
         ),
-        filterId: generateId({ length: 8 }),
+        filterId: crypto.randomUUID().slice(0, 8),
       },
     ]);
   }, [columns, filters, debouncedSetFilters]);
