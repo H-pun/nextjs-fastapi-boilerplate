@@ -25,6 +25,7 @@ function rememberedKeys(keys: QueryKeys) {
     keys.filters,
     keys.joinOperator,
     keys.perPage,
+    keys.groupBy,
   ];
 }
 
@@ -50,13 +51,18 @@ export function useTableMemory(
   persistKey?: string,
   queryKeys: QueryKeys = DEFAULT_QUERY_KEYS,
   /** The columns this table actually has, so a stale key is not restored. */
-  columnIds?: Set<string>
+  columnIds?: Set<string>,
+  /** Page-specific URL params to remember with the table (e.g. `roleId`). */
+  extraKeys: string[] = []
 ) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const storageKey = `${STORAGE_PREFIX}${persistKey ?? pathname}`;
 
-  const keys = React.useMemo(() => rememberedKeys(queryKeys), [queryKeys]);
+  const keys = React.useMemo(
+    () => [...rememberedKeys(queryKeys), ...extraKeys],
+    [queryKeys, extraKeys]
+  );
 
   /**
    * The same parsers the controls themselves hold these keys with.
@@ -67,17 +73,20 @@ export function useTableMemory(
    * list keeps its array — `length` still answered, so the list rendered and
    * then died on `.map`. Same shape of bug waited in `sort` and `perPage`.
    */
-  const parsers = React.useMemo(
-    () => ({
+  const parsers = React.useMemo(() => {
+    const next = {
       [queryKeys.view]: parseAsString,
       [queryKeys.search]: parseAsString,
       [queryKeys.joinOperator]: parseAsString,
       [queryKeys.perPage]: parseAsInteger,
       [queryKeys.sort]: getSortingStateParser(columnIds),
       [queryKeys.filters]: getFiltersStateParser(columnIds),
-    }),
-    [queryKeys, columnIds]
-  );
+      [queryKeys.groupBy]: parseAsString,
+      ...Object.fromEntries(extraKeys.map((key) => [key, parseAsString])),
+    };
+
+    return next;
+  }, [queryKeys, columnIds, extraKeys]);
 
   // Restored through nuqs rather than the router: the search box, filter list
   // and sort list hold these keys through nuqs, and a plain navigation past it

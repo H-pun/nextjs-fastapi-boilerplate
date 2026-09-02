@@ -32,6 +32,7 @@ import * as React from "react";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { type TableLayout, useTableLayout } from "@/hooks/use-table-layout";
 import { useTableMemory } from "@/hooks/use-table-memory";
+import { dataTableConfig } from "@/config/data-table";
 import { getSortingStateParser } from "@/lib/parsers";
 import type { ExtendedColumnSort, QueryKeys } from "@/types/data-table";
 
@@ -42,6 +43,7 @@ const FILTERS_KEY = "filters";
 const JOIN_OPERATOR_KEY = "joinOperator";
 const SEARCH_KEY = "search";
 const VIEW_KEY = "view";
+const GROUP_BY_KEY = "groupBy";
 const ARRAY_SEPARATOR = ",";
 const DEBOUNCE_MS = 300;
 const THROTTLE_MS = 50;
@@ -68,6 +70,8 @@ interface UseDataTableProps<TData>
    * needs overriding when one route holds two tables.
    */
   persistKey?: string;
+  /** Extra URL params to remember with table state (e.g. page-specific filters). */
+  memoryKeys?: string[];
   history?: "push" | "replace";
   debounceMs?: number;
   throttleMs?: number;
@@ -76,6 +80,8 @@ interface UseDataTableProps<TData>
   scroll?: boolean;
   shallow?: boolean;
   startTransition?: React.TransitionStartFunction;
+  /** Page buttons (`pages`) or infinite scroll (`infinite`). */
+  paginationMode?: "pages" | "infinite";
 }
 
 /**
@@ -111,6 +117,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     initialState,
     queryKeys,
     persistKey,
+    memoryKeys,
     history = "replace",
     debounceMs = DEBOUNCE_MS,
     throttleMs = THROTTLE_MS,
@@ -119,6 +126,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     scroll = false,
     shallow = true,
     startTransition,
+    paginationMode = "pages",
     ...tableProps
   } = props;
   const pageKey = queryKeys?.page ?? PAGE_KEY;
@@ -128,6 +136,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   const joinOperatorKey = queryKeys?.joinOperator ?? JOIN_OPERATOR_KEY;
   const searchKey = queryKeys?.search ?? SEARCH_KEY;
   const viewKey = queryKeys?.view ?? VIEW_KEY;
+  const groupByKey = queryKeys?.groupBy ?? GROUP_BY_KEY;
 
   const tableKeys = React.useMemo<QueryKeys>(
     () => ({
@@ -138,6 +147,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       joinOperator: joinOperatorKey,
       search: searchKey,
       view: viewKey,
+      groupBy: groupByKey,
     }),
     [
       pageKey,
@@ -147,6 +157,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       joinOperatorKey,
       searchKey,
       viewKey,
+      groupByKey,
     ]
   );
 
@@ -196,6 +207,12 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     reset: resetStoredLayout,
   } = useTableLayout(layoutDefaults, persistKey);
 
+  const memoryKeySignature = (memoryKeys ?? []).join("\0");
+  const stableMemoryKeys = React.useMemo(
+    () => memoryKeys ?? [],
+    [memoryKeySignature]
+  );
+
   const columnIds = React.useMemo(() => {
     return new Set(
       columns.map((column) => column.id).filter(Boolean) as string[]
@@ -206,7 +223,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   // the way out. This puts them back on the way in — through the same
   // whitelist the controls use, so a filter on a column that has since been
   // renamed is dropped rather than restored into a request the server refuses.
-  useTableMemory(persistKey, tableKeys, columnIds);
+  useTableMemory(persistKey, tableKeys, columnIds, stableMemoryKeys);
 
   // Everything about how the columns are arranged, visibility included.
   const resetLayout = React.useCallback(() => {
@@ -249,36 +266,47 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     [layout, columnPinning, layoutDefaults.columnPinning, setLayout]
   );
 
-  const [page, setPage] = useQueryState(
+  const isInfinite = paginationMode === "infinite";
+  const infiniteChunkSize = dataTableConfig.infiniteTableChunkSize;
+  const defaultPageSize =
+    initialState?.pagination?.pageSize ??
+    (isInfinite ? infiniteChunkSize : 10);
+
+  const [page, setPageState] = useQueryState(
     pageKey,
     parseAsInteger.withOptions(queryStateOptions).withDefault(1)
   );
-  const [perPage, setPerPage] = useQueryState(
+
+  const [perPage, setPerPageState] = useQueryState(
     perPageKey,
     parseAsInteger
       .withOptions(queryStateOptions)
-      .withDefault(initialState?.pagination?.pageSize ?? 10)
+      .withDefault(defaultPageSize)
   );
+
+  const pageSize = isInfinite ? infiniteChunkSize : perPage;
 
   const pagination: PaginationState = React.useMemo(() => {
     return {
-      pageIndex: page - 1, // zero-based index -> one-based index
-      pageSize: perPage,
+      pageIndex: isInfinite ? 0 : page - 1,
+      pageSize,
     };
-  }, [page, perPage]);
+  }, [isInfinite, page, pageSize]);
 
   const onPaginationChange = React.useCallback(
     (updaterOrValue: Updater<PaginationState>) => {
+      if (isInfinite) return;
+
       if (typeof updaterOrValue === "function") {
         const newPagination = updaterOrValue(pagination);
-        void setPage(newPagination.pageIndex + 1);
-        void setPerPage(newPagination.pageSize);
+        void setPageState(newPagination.pageIndex + 1);
+        void setPerPageState(newPagination.pageSize);
       } else {
-        void setPage(updaterOrValue.pageIndex + 1);
-        void setPerPage(updaterOrValue.pageSize);
+        void setPageState(updaterOrValue.pageIndex + 1);
+        void setPerPageState(updaterOrValue.pageSize);
       }
     },
-    [pagination, setPage, setPerPage]
+    [isInfinite, pagination, setPageState, setPerPageState]
   );
 
   const [sorting, setSorting] = useQueryState(
@@ -290,10 +318,9 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
 
   const onSortingChange = React.useCallback(
     (updaterOrValue: Updater<SortingState>) => {
-      // A different ordering invalidates the current server-side page. Reset
-      // it together with the URL sort state so we never request an out-of-range
-      // page after the user changes sorting.
-      void setPage(1);
+      if (!isInfinite) {
+        void setPageState(1);
+      }
       if (typeof updaterOrValue === "function") {
         const newSorting = updaterOrValue(sorting);
         void setSorting(newSorting as ExtendedColumnSort<TData>[]);
@@ -301,7 +328,22 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
         void setSorting(updaterOrValue as ExtendedColumnSort<TData>[]);
       }
     },
-    [sorting, setPage, setSorting]
+    [isInfinite, sorting, setPageState, setSorting]
+  );
+
+  const [groupBy, setGroupByState] = useQueryState(
+    groupByKey,
+    parseAsString.withOptions(queryStateOptions)
+  );
+
+  const setGroupBy = React.useCallback(
+    (columnId: string | null) => {
+      if (!isInfinite) {
+        void setPageState(1);
+      }
+      void setGroupByState(columnId);
+    },
+    [isInfinite, setGroupByState, setPageState]
   );
 
   const filterableColumns = React.useMemo(() => {
@@ -332,7 +374,9 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
 
   const debouncedSetFilterValues = useDebouncedCallback(
     (values: typeof filterValues) => {
-      void setPage(1);
+      if (!isInfinite) {
+        void setPageState(1);
+      }
       void setFilterValues(values);
     },
     debounceMs
@@ -439,11 +483,14 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       ...tableProps.meta,
       resetLayout,
       queryKeys: tableKeys,
+      groupBy: groupBy ?? null,
+      setGroupBy,
+      paginationMode,
     },
   });
 
   return React.useMemo(
-    () => ({ table, shallow, debounceMs, throttleMs }),
-    [table, shallow, debounceMs, throttleMs]
+    () => ({ table, shallow, debounceMs, throttleMs, paginationMode }),
+    [table, shallow, debounceMs, throttleMs, paginationMode]
   );
 }

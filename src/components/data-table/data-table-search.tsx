@@ -31,13 +31,16 @@ export function DataTableSearch({
 }) {
   // Named by the toolbar's table, so two tables on one route do not type into
   // each other's search box.
-  const keys = useDataTableQueryKeys();
+  const { keys, paginationMode } = useDataTableQueryKeys();
+  const isInfinite = paginationMode === "infinite";
   const parsers = useMemo(
     () => ({
       [keys.search]: parseAsString.withOptions({ shallow }).withDefault(""),
-      [keys.page]: parseAsInteger.withOptions({ shallow }).withDefault(1),
+      ...(isInfinite
+        ? {}
+        : { [keys.page]: parseAsInteger.withOptions({ shallow }).withDefault(1) }),
     }),
-    [keys.search, keys.page, shallow]
+    [isInfinite, keys.page, keys.search, shallow]
   );
 
   const [query, setQuery] = useQueryStates(parsers);
@@ -57,7 +60,11 @@ export function DataTableSearch({
   // A different search means the current page number is meaningless.
   const push = useDebouncedCallback(
     (next: string) =>
-      setQuery({ [keys.search]: next || null, [keys.page]: null }),
+      setQuery(
+        isInfinite
+          ? { [keys.search]: next || null }
+          : { [keys.search]: next || null, [keys.page]: null }
+      ),
     300
   );
 

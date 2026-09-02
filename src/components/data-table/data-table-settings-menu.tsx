@@ -7,10 +7,13 @@ import {
   ChevronUp,
   Columns3,
   GripVertical,
+  Layers2,
   RefreshCw,
   RotateCcw,
   Settings2,
+  X,
 } from "lucide-react";
+import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +63,25 @@ export function DataTableSettingsMenu<TData>({
   disabled,
 }: DataTableSettingsMenuProps<TData>) {
   const resetLayout = table.options.meta?.resetLayout;
+  const groupBy = table.options.meta?.groupBy ?? null;
+  const setGroupBy = table.options.meta?.setGroupBy;
+
+  const groupableColumns = React.useMemo(() => {
+    return table
+      .getAllLeafColumns()
+      .filter((column) => {
+        if (!column.columnDef.meta?.enableGrouping) return false;
+        const { accessorKey, accessorFn } = column.columnDef;
+        return accessorKey != null || accessorFn != null;
+      })
+      .map((column) => ({
+        id: column.id,
+        label: column.columnDef.meta?.label ?? column.id,
+      }));
+  }, [table]);
+
+  const activeGroupLabel =
+    groupableColumns.find((column) => column.id === groupBy)?.label ?? groupBy;
 
   // Leaf columns, not `getAllColumns()` — only the leaf list is run through the
   // column order, so this keeps both lists in step after a reorder.
@@ -238,6 +260,48 @@ export function DataTableSettingsMenu<TData>({
               </DropdownMenuPortal>
             </DropdownMenuSub>
           </>
+        )}
+
+        {setGroupBy && groupableColumns.length > 0 && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Layers2 className="text-muted-foreground" />
+              Group
+              {groupBy ? (
+                <span className="text-muted-foreground ml-auto truncate text-xs">
+                  {activeGroupLabel}
+                </span>
+              ) : null}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="max-h-72 w-48 overflow-y-auto">
+                {groupableColumns.map((column) => (
+                  <DropdownMenuItem
+                    key={column.id}
+                    onSelect={() =>
+                      setGroupBy(column.id === groupBy ? null : column.id)
+                    }
+                  >
+                    <span className="truncate">{column.label}</span>
+                    {column.id === groupBy ? (
+                      <span className="text-muted-foreground ml-auto text-xs">
+                        Active
+                      </span>
+                    ) : null}
+                  </DropdownMenuItem>
+                ))}
+                {groupBy ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setGroupBy(null)}>
+                      <X className="text-muted-foreground" />
+                      Clear grouping
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
         )}
 
         {onRefresh && (

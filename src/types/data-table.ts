@@ -2,6 +2,8 @@ import type { ColumnSort, Row, RowData } from "@tanstack/react-table";
 import type { DataTableConfig } from "@/config/data-table";
 import type { FilterItemSchema } from "@/lib/parsers";
 
+export type TablePaginationMode = "pages" | "infinite";
+
 declare module "@tanstack/react-table" {
   // Generic names must match TanStack's declaration for module augmentation.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -9,6 +11,11 @@ declare module "@tanstack/react-table" {
     queryKeys?: QueryKeys;
     /** Column order, pinning and visibility back to the page's defaults. */
     resetLayout?: () => void;
+    /** Active server-side group column id, if any. */
+    groupBy?: string | null;
+    setGroupBy?: (columnId: string | null) => void;
+    /** How rows are loaded — page buttons or infinite scroll. */
+    paginationMode?: TablePaginationMode;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -22,6 +29,8 @@ declare module "@tanstack/react-table" {
     icon?: React.ComponentType<React.ComponentProps<"svg">>;
     /** Shrink this column to the width required by its content. */
     fitContent?: boolean;
+    /** Allow grouping rows by this column (server-side). */
+    enableGrouping?: boolean;
   }
 }
 
@@ -37,6 +46,8 @@ export interface QueryKeys {
   filters: string;
   joinOperator: string;
   search: string;
+  /** Server-side row grouping column id. */
+  groupBy: string;
   /** The table/list toggle. Owned by the page, but remembered with the rest. */
   view: string;
 }

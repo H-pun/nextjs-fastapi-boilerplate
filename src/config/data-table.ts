@@ -79,4 +79,6 @@ export const dataTableConfig = {
     "isRelativeToToday",
   ] as const,
   joinOperators: ["and", "or"] as const,
+  /** Rows fetched per infinite-scroll chunk — not exposed in the UI. */
+  infiniteTableChunkSize: 50,
 };

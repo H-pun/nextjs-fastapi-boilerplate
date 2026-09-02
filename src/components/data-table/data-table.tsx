@@ -22,10 +22,16 @@ import {
   type Cell,
   flexRender,
   type Header,
+  type Row,
   type Table as TanstackTable,
 } from "@tanstack/react-table";
+import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
+import {
+  DataTableInfiniteFooter,
+  type DataTableInfiniteState,
+} from "@/components/data-table/data-table-infinite-footer";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import {
   Table,
@@ -35,12 +41,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  getGroupCount,
+  getGroupLabel,
+  getRowGroupKey,
+  indexRowsByGroupKey,
+} from "@/lib/data-table-grouping";
 import { getColumnPinningStyle } from "@/lib/data-table";
+import type { GroupSummary } from "@/lib/types/pagination";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   table: TanstackTable<TData>;
   actionBar?: React.ReactNode;
+  /** Group counts from the server when `meta.groupBy` is active. */
+  groupSummaries?: GroupSummary[] | null;
+  /** Infinite scroll state — omit for page-button pagination. */
+  infinite?: DataTableInfiniteState;
   /**
    * Makes each row open its record. Interactive cells (action menus, buttons)
    * have to stop propagation themselves, or they fire this too.
@@ -140,9 +157,74 @@ function DraggableTableCell<TData>({ cell }: { cell: Cell<TData, unknown> }) {
   );
 }
 
+function DataTableRowCells<TData>({
+  row,
+  pinnedOffsets,
+  sortableColumnIds,
+}: {
+  row: Row<TData>;
+  pinnedOffsets: Record<string, number>;
+  sortableColumnIds: string[];
+}) {
+  return (
+    <SortableContext
+      items={sortableColumnIds}
+      strategy={horizontalListSortingStrategy}
+    >
+      {row.getVisibleCells().map((cell) =>
+        cell.column.getIsPinned() ? (
+          <TableCell
+            key={cell.id}
+            className={pinnedCellClass}
+            style={{
+              ...getColumnPinningStyle({
+                column: cell.column,
+                offset: pinnedOffsets[cell.column.id],
+                withBorder: true,
+              }),
+            }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ) : (
+          <DraggableTableCell key={cell.id} cell={cell} />
+        )
+      )}
+    </SortableContext>
+  );
+}
+
+function DataTableDataRow<TData>({
+  row,
+  pinnedOffsets,
+  sortableColumnIds,
+  onRowClick,
+}: {
+  row: Row<TData>;
+  pinnedOffsets: Record<string, number>;
+  sortableColumnIds: string[];
+  onRowClick?: (row: TData) => void;
+}) {
+  return (
+    <TableRow
+      data-state={row.getIsSelected() && "selected"}
+      className={cn("group/row", onRowClick && "cursor-pointer")}
+      onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+    >
+      <DataTableRowCells
+        row={row}
+        pinnedOffsets={pinnedOffsets}
+        sortableColumnIds={sortableColumnIds}
+      />
+    </TableRow>
+  );
+}
+
 export function DataTable<TData>({
   table,
   actionBar,
+  groupSummaries,
+  infinite,
   children,
   className,
   onRowClick,
@@ -169,6 +251,7 @@ export function DataTable<TData>({
   const leftPinned = table.getLeftVisibleLeafColumns();
   const rightPinned = table.getRightVisibleLeafColumns();
   const headerRef = React.useRef<HTMLTableSectionElement>(null);
+  const loadMoreRef = React.useRef<HTMLTableRowElement>(null);
   const [pinnedWidths, setPinnedWidths] = React.useState<
     Record<string, number>
   >({});
@@ -244,9 +327,255 @@ export function DataTable<TData>({
     [table]
   );
 
+  const groupBy = table.options.meta?.groupBy ?? null;
+  const [collapsedByGroup, setCollapsedByGroup] = React.useState<
+    Record<string, Set<string>>
+  >({});
+
+  const collapsedGroups = React.useMemo(
+    () => (groupBy ? (collapsedByGroup[groupBy] ?? new Set<string>()) : new Set()),
+    [collapsedByGroup, groupBy]
+  );
+
+  const toggleGroup = React.useCallback(
+    (groupKey: string) => {
+      if (!groupBy) return;
+      setCollapsedByGroup((previous) => {
+        const current = new Set(previous[groupBy] ?? []);
+        if (current.has(groupKey)) current.delete(groupKey);
+        else current.add(groupKey);
+        return { ...previous, [groupBy]: current };
+      });
+    },
+    [groupBy]
+  );
+
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+  const tableRows = table.getRowModel().rows;
+
+  React.useEffect(() => {
+    if (!infinite?.hasNextPage || infinite.isFetchingNextPage) return;
+
+    const target = loadMoreRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          infinite.onLoadMore();
+        }
+      },
+      { root: null, rootMargin: "400px" }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [
+    infinite?.hasNextPage,
+    infinite?.isFetchingNextPage,
+    infinite?.onLoadMore,
+    tableRows.length,
+  ]);
+
+  const loadMoreSentinel = React.useMemo(() => {
+    if (!infinite?.hasNextPage && !infinite?.isFetchingNextPage) return null;
+
+    return (
+      <TableRow ref={loadMoreRef} className="hover:bg-transparent">
+        <TableCell
+          colSpan={visibleColumnCount}
+          className="h-10 text-center text-muted-foreground text-sm"
+        >
+          {infinite.isFetchingNextPage ? (
+            <span className="inline-flex items-center gap-2">
+              Loading more…
+            </span>
+          ) : null}
+        </TableCell>
+      </TableRow>
+    );
+  }, [
+    infinite?.hasNextPage,
+    infinite?.isFetchingNextPage,
+    visibleColumnCount,
+  ]);
+
+  const flatInfiniteBodyRows = React.useMemo(() => {
+    if (!infinite || groupBy) return null;
+    if (!tableRows.length) return null;
+
+    return (
+      <>
+        {tableRows.map((row) => (
+          <DataTableDataRow
+            key={row.id}
+            row={row}
+            pinnedOffsets={pinnedOffsets}
+            sortableColumnIds={sortableColumnIds}
+            onRowClick={onRowClick}
+          />
+        ))}
+        {loadMoreSentinel}
+      </>
+    );
+  }, [
+    groupBy,
+    infinite,
+    loadMoreSentinel,
+    onRowClick,
+    pinnedOffsets,
+    sortableColumnIds,
+    tableRows,
+  ]);
+
+  const bodyRows = React.useMemo(() => {
+    // Ungrouped infinite rows use flatInfiniteBodyRows above.
+    if (infinite && !groupBy) return null;
+    if (!tableRows.length && !infinite?.hasNextPage) return null;
+
+    const elements: React.ReactNode[] = [];
+
+    const pushGroupHeader = (
+      groupKey: string,
+      label: string,
+      count: number | undefined
+    ) => {
+      const collapsed = collapsedGroups.has(groupKey);
+      elements.push(
+        <TableRow
+          key={`group-${groupKey}-${elements.length}`}
+          className="bg-muted/40 hover:bg-muted/40"
+        >
+          <TableCell colSpan={visibleColumnCount} className="py-2">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 text-left font-medium"
+              onClick={() => toggleGroup(groupKey)}
+            >
+              <ChevronDown
+                className={cn(
+                  "text-muted-foreground size-4 shrink-0 transition-transform",
+                  collapsed && "-rotate-90"
+                )}
+              />
+              <span className="truncate">{label}</span>
+              {count !== undefined ? (
+                <span className="text-muted-foreground text-xs font-normal">
+                  {count}
+                </span>
+              ) : null}
+            </button>
+          </TableCell>
+        </TableRow>
+      );
+      return collapsed;
+    };
+
+    const pushDataRow = (row: Row<TData>) => {
+      elements.push(
+        <DataTableDataRow
+          key={row.id}
+          row={row}
+          pinnedOffsets={pinnedOffsets}
+          sortableColumnIds={sortableColumnIds}
+          onRowClick={onRowClick}
+        />
+      );
+    };
+
+    if (groupBy && groupSummaries?.length) {
+      const rowsByGroup = indexRowsByGroupKey(tableRows, groupBy);
+      const renderedKeys = new Set<string>();
+
+      for (const summary of groupSummaries) {
+        const rows = rowsByGroup.get(summary.id) ?? [];
+        if (summary.count <= 0 && rows.length === 0) continue;
+
+        renderedKeys.add(summary.id);
+        const collapsed = pushGroupHeader(summary.id, summary.label, summary.count);
+        if (!collapsed) {
+          for (const row of rows) {
+            pushDataRow(row);
+          }
+        }
+      }
+
+      for (const [groupKey, rows] of rowsByGroup) {
+        if (renderedKeys.has(groupKey) || rows.length === 0) continue;
+
+        const collapsed = pushGroupHeader(
+          groupKey,
+          getGroupLabel(groupKey, groupSummaries),
+          getGroupCount(groupKey, groupSummaries)
+        );
+        if (!collapsed) {
+          for (const row of rows) {
+            pushDataRow(row);
+          }
+        }
+      }
+    } else if (groupBy) {
+      let lastGroupKey: string | null = null;
+
+      for (const row of tableRows) {
+        const groupKey = getRowGroupKey(row, groupBy);
+
+        if (groupKey !== lastGroupKey) {
+          lastGroupKey = groupKey;
+          pushGroupHeader(
+            groupKey,
+            getGroupLabel(groupKey, groupSummaries),
+            getGroupCount(groupKey, groupSummaries)
+          );
+        }
+
+        if (collapsedGroups.has(groupKey)) {
+          continue;
+        }
+
+        pushDataRow(row);
+      }
+    } else {
+      for (const row of tableRows) {
+        pushDataRow(row);
+      }
+    }
+
+    if (loadMoreSentinel) {
+      elements.push(loadMoreSentinel);
+    }
+
+    return elements;
+  }, [
+    collapsedGroups,
+    groupBy,
+    groupSummaries,
+    infinite,
+    loadMoreSentinel,
+    onRowClick,
+    pinnedOffsets,
+    sortableColumnIds,
+    tableRows,
+    toggleGroup,
+    visibleColumnCount,
+  ]);
+
+  const tableBodyContent =
+    flatInfiniteBodyRows ??
+    bodyRows ?? (
+      <TableRow>
+        <TableCell
+          colSpan={table.getAllColumns().length}
+          className="h-24 text-center"
+        >
+          No results.
+        </TableCell>
+      </TableRow>
+    );
+
   return (
     <div
-      className={cn("flex w-full flex-col gap-2 overflow-auto", className)}
+      className={cn("flex w-full min-w-0 flex-col gap-2", className)}
       {...props}
     >
       {children}
@@ -256,7 +585,7 @@ export function DataTable<TData>({
         modifiers={[restrictToHorizontalAxis]}
         onDragEnd={onDragEnd}
       >
-        <div className="overflow-hidden rounded-md border">
+        <div className="min-w-0 overflow-x-auto rounded-md border">
           <Table>
             <TableHeader ref={headerRef}>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -297,62 +626,16 @@ export function DataTable<TData>({
                 </TableRow>
               ))}
             </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className={cn("group/row", onRowClick && "cursor-pointer")}
-                    onClick={
-                      onRowClick ? () => onRowClick(row.original) : undefined
-                    }
-                  >
-                    <SortableContext
-                      items={sortableColumnIds}
-                      strategy={horizontalListSortingStrategy}
-                    >
-                      {row.getVisibleCells().map((cell) =>
-                        cell.column.getIsPinned() ? (
-                          <TableCell
-                            key={cell.id}
-                            className={pinnedCellClass}
-                            style={{
-                              ...getColumnPinningStyle({
-                                column: cell.column,
-                                offset: pinnedOffsets[cell.column.id],
-                                withBorder: true,
-                              }),
-                            }}
-                          >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ) : (
-                          <DraggableTableCell key={cell.id} cell={cell} />
-                        )
-                      )}
-                    </SortableContext>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={table.getAllColumns().length}
-                    className="h-24 text-center"
-                  >
-                    No results.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+            <TableBody>{tableBodyContent}</TableBody>
           </Table>
         </div>
       </DndContext>
       <div className="flex flex-col gap-2.5">
-        <DataTablePagination table={table} />
+        {infinite ? (
+          <DataTableInfiniteFooter infinite={infinite} />
+        ) : (
+          <DataTablePagination table={table} />
+        )}
         {actionBar &&
           table.getFilteredSelectedRowModel().rows.length > 0 &&
           actionBar}

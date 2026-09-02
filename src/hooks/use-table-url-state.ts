@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 
+import { dataTableConfig } from "@/config/data-table";
+
 export const TABLE_VIEWS = ["table", "list"] as const;
 
 export type TableView = (typeof TABLE_VIEWS)[number];
@@ -33,6 +35,7 @@ export function useTableUrlState() {
       sort: searchParams.get("sort") ?? "",
       filters: searchParams.get("filters") ?? "",
       joinOperator: normalizedJoinOperator,
+      groupBy: searchParams.get("groupBy") ?? "",
     };
   }, [searchParams]);
 }
@@ -64,5 +67,18 @@ export function toQueryParams(state: ReturnType<typeof useTableUrlState>) {
       filters: state.filters,
       joinOperator: state.joinOperator,
     }),
+    ...(state.groupBy && { groupBy: state.groupBy }),
   };
+}
+
+/** Like `toQueryParams`, but fixes the chunk size for infinite-scroll fetches. */
+export function toInfiniteQueryParams(
+  state: ReturnType<typeof useTableUrlState>,
+  page: number
+) {
+  return toQueryParams({
+    ...state,
+    page,
+    perPage: dataTableConfig.infiniteTableChunkSize,
+  });
 }

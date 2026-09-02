@@ -20,13 +20,19 @@ export function DataTableResetFilters() {
   const searchParams = useSearchParams();
   // The toolbar names these after its own table, so a page with two tables
   // clears the one the button belongs to rather than both.
-  const keys = useDataTableQueryKeys();
+  const { keys, paginationMode } = useDataTableQueryKeys();
 
   // `page` rides along because the row it pointed at is gone once the narrowing
   // is, but it is not itself a reason to offer the button.
   const cleared = useMemo(
-    () => [keys.search, keys.sort, keys.filters, keys.joinOperator, keys.page],
-    [keys]
+    () => [
+      keys.search,
+      keys.sort,
+      keys.filters,
+      keys.joinOperator,
+      ...(paginationMode === "infinite" ? [] : [keys.page]),
+    ],
+    [keys, paginationMode]
   );
   const counted = useMemo(
     () => [keys.search, keys.sort, keys.filters],

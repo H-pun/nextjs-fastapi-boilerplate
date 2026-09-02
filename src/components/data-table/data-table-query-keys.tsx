@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import type { QueryKeys } from "@/types/data-table";
+import type { QueryKeys, TablePaginationMode } from "@/types/data-table";
 
 /** What a table's state is called in the URL when nothing renames it. */
 export const DEFAULT_QUERY_KEYS: QueryKeys = {
@@ -12,10 +12,19 @@ export const DEFAULT_QUERY_KEYS: QueryKeys = {
   filters: "filters",
   joinOperator: "joinOperator",
   search: "search",
+  groupBy: "groupBy",
   view: "view",
 };
 
-const QueryKeysContext = React.createContext<QueryKeys>(DEFAULT_QUERY_KEYS);
+interface DataTableQueryKeysContextValue {
+  keys: QueryKeys;
+  paginationMode: TablePaginationMode;
+}
+
+const QueryKeysContext = React.createContext<DataTableQueryKeysContextValue>({
+  keys: DEFAULT_QUERY_KEYS,
+  paginationMode: "pages",
+});
 
 /**
  * Carries a table's own param names down to the controls that write them.
@@ -27,15 +36,23 @@ const QueryKeysContext = React.createContext<QueryKeys>(DEFAULT_QUERY_KEYS);
  */
 export function DataTableQueryKeysProvider({
   keys,
+  paginationMode = "pages",
   children,
 }: {
   keys?: QueryKeys;
+  paginationMode?: TablePaginationMode;
   children: React.ReactNode;
 }) {
+  const value = React.useMemo(
+    () => ({
+      keys: keys ?? DEFAULT_QUERY_KEYS,
+      paginationMode,
+    }),
+    [keys, paginationMode]
+  );
+
   return (
-    <QueryKeysContext.Provider value={keys ?? DEFAULT_QUERY_KEYS}>
-      {children}
-    </QueryKeysContext.Provider>
+    <QueryKeysContext.Provider value={value}>{children}</QueryKeysContext.Provider>
   );
 }
 
