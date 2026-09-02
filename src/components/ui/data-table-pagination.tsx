@@ -30,7 +30,7 @@ export function DataTablePagination<TData>({
   const end = Math.min(totalItems, (pageIndex + 1) * pageSize);
   return (
     <div className="flex items-center justify-between px-2">
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center gap-2">
         <p className="text-sm font-medium">Rows per page</p>
         <Select
           value={`${pageSize}`}
@@ -57,7 +57,7 @@ export function DataTablePagination<TData>({
         <div className="flex w-25 items-center justify-center text-sm font-medium">
           {`Page ${pageIndex + 1} of ${table.getPageCount()}`}
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="icon"

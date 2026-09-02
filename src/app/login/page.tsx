@@ -30,8 +30,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
-
-import { Loader2, AlertCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner"
+import { AlertCircle } from "lucide-react";
 import { loginSchema, LoginForm } from "@/lib/types/user";
 
 function LoginContent() {
@@ -112,14 +112,8 @@ function LoginContent() {
                   )}
                   <Field>
                     <Button type="submit" disabled={isLoading} className="bg-linear-to-r from-sky-500 to-teal-400 text-white hover:from-sky-600 hover:to-teal-500 dark:from-sky-800 dark:to-teal-700 dark:hover:from-sky-700 dark:hover:to-teal-600">
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Logging in...
-                        </>
-                      ) : (
-                        "Login"
-                      )}
+                      {isLoading && <Spinner />}
+                      {isLoading ? "Logging in..." : "Login"}
                     </Button>
                   </Field>
                 </FieldGroup>

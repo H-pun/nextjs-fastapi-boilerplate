@@ -108,7 +108,7 @@ Everything else is intentionally left out — add your own features on top of th
 - **Next.js 16** (App Router, `src/app/`) — see the Next.js warning block above
 - **React 19** + **TypeScript**
 - **Tailwind CSS v4** (PostCSS plugin, not v3 config)
-- **shadcn/ui** (components in `src/components/ui/`)
+- **shadcn/ui** (components in `src/components/ui/`, style: **radix-nova**)
 - **Highcharts** via `highcharts` + `@highcharts/react`
 - **TanStack Query v5** for server state, **TanStack Table v8** for tables
 - **next-auth v4** (Credentials provider, JWT strategy)
@@ -465,13 +465,54 @@ router.push("/dashboard/admin/feature/create");
 
 ### Data tables
 
-Use `src/components/data-table/` with `useDataTable`. Table state lives in the
-URL through nuqs. A page should have one owner for each query key: controls
-write the URL, while data fetching reads that resulting URL state.
+Use `src/components/data-table/` with `useDataTable` — not the legacy
+`src/components/ui/data-table.tsx`. Table state lives in the URL through nuqs.
+A page should have one owner for each query key: controls write the URL, while
+data fetching reads that resulting URL state.
+
+**Fetching pattern** — `useDataTable` owns nuqs writes; the page reads the URL
+back with `useTableUrlState()` and passes the result to TanStack Query. Do not
+mount a second nuqs owner for the same keys.
+
+```tsx
+import { useTableUrlState, toQueryParams } from "@/hooks/use-table-url-state";
+
+const tableState = useTableUrlState();
+
+const { data, isFetching, refetch } = useQuery({
+  queryKey: ["users", tableState],
+  queryFn: () => getUsers(toQueryParams(tableState)),
+});
+
+const { table } = useDataTable({
+  data: data?.items ?? [],
+  pageCount: data?.totalPages ?? -1,
+  rowCount: data?.totalItems ?? 0,
+  enableAdvancedFilter: true,
+});
+```
 
 Table pages use `DataTableAdvancedToolbar` with `DataTableSearch`,
 `DataTableFilterList`, and `DataTableSortList` — see
 `src/app/dashboard/admin/user/page.tsx` as the reference implementation.
+
+### shadcn/ui preset
+
+The project uses the **Nova** preset (`radix-nova` in `components.json`) — compact
+spacing tuned for data-heavy dashboards. Re-apply with:
+
+```bash
+npx shadcn@latest apply b0 -y
+```
+
+**After `apply`, restore project-specific files if overwritten:**
+
+- `src/lib/utils.ts` — keep helpers like `getInitials`, `renderBytes`, and Axios case converters
+- `src/hooks/use-mobile.ts` — keep the `useSyncExternalStore` version (the CLI template fails lint)
+
+Custom CSS in `globals.css` (`.tiptap-image`, `@utility bg-grid`, `@utility bg-login`)
+and non-registry components (`dropzone`, `text-editor`, etc.) are not managed by
+the CLI — verify they remain after apply.
 
 ### Highcharts usage
 
@@ -495,9 +536,10 @@ All UI text is in **English**. No mixed languages on the same page.
 The dashboard layout owns page padding. Page containers use
 `mx-auto w-full max-w-7xl space-y-6` without a second padding layer.
 
-Use `PageHeader` from `@/components/page-header` for every dashboard page title
-and description. Pass `action` for a top-right primary control and `back` for
-child-page navigation:
+Use `PageHeader` from `@/components/page-header` for every **dashboard** page
+title and description. Public pages (landing, login) and error pages (forbidden)
+may use their own layout. Pass `action` for a top-right primary control and
+`back` for child-page navigation:
 
 ```tsx
 <PageHeader
@@ -575,6 +617,8 @@ import { Spinner } from "@/components/ui/spinner";
   Save Changes
 </Button>
 ```
+
+Use `flex` with `gap-*` for horizontal spacing in new UI — avoid `space-x-*`.
 
 ### Forms — inline validation, not just toasts
 
@@ -673,6 +717,21 @@ pytest api/tests/   # requires PostgreSQL configured through .env
 ```
 
 Python virtualenv is at `.venv/`. Activate with `source .venv/bin/activate`.
+
+### Git commits
+
+Use [Conventional Commits](https://www.conventionalcommits.org/). Check `git log` before
+committing — match the repo's established style.
+
+- Prefix by change type: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
+- Subject is **lowercase** after the prefix; imperative mood, no trailing period
+- Optional body: 1–2 sentences when the "why" is not obvious from the subject
+
+```
+feat: apply shadcn Nova preset (b0)
+chore: remove unused use-server-data-table hook
+docs: expand AGENTS.md data-table fetch pattern
+```
 
 ## Verification
 
