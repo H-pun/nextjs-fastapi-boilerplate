@@ -1,12 +1,13 @@
 from uuid import UUID
 from fastapi import APIRouter, File, HTTPException, UploadFile, Security
 
+from api.core.config import settings
 from api.core.deps import SessionDep, CurrentUser, S3ClientDep, get_current_user
 from api.database import User
 from api.schemas.user import (
     AuthenticateUserRequest, AuthenticateUserResponse, UpdateUserRequest,
     UpdatePasswordRequest, AdminResetPasswordRequest, ChangeRoleRequest,
-    GetUserQuery, CreateUserRequest,
+    GetUserQuery, CreateUserRequest, OidcLoginRequest,
 )
 from api.schemas.pagination import Pagination
 
@@ -21,6 +22,23 @@ async def get_me(user: CurrentUser) -> AuthenticateUserResponse:
 @router.post("/login")
 async def login(db: SessionDep, data: AuthenticateUserRequest) -> AuthenticateUserResponse:
     return await UserService.authenticate(db, data=data)
+
+@router.get("/auth/providers")
+async def auth_providers() -> dict[str, bool]:
+    """Which ways in this deployment offers, so a client can show only the
+    buttons that would work."""
+    return {"credentials": True, **settings.oidc_providers}
+
+@router.post("/login/{provider}")
+async def login_oidc(db: SessionDep, provider: str, data: OidcLoginRequest) -> AuthenticateUserResponse:
+    """Exchange a provider's token for this app's own.
+
+    One route for every provider: the name in the path is the same one
+    `user_identities.provider` stores. Unguarded by design — it is a way in,
+    like /login. An unconfigured name answers 404 rather than admitting it
+    exists.
+    """
+    return await UserService.authenticate_oidc(db, provider=provider, data=data)
 
 @router.get("")
 async def get_all(db: SessionDep, filters: GetUserQuery, user: User = Security(get_current_user, scopes=["user:manage"])) -> Pagination[AuthenticateUserResponse]:

@@ -137,7 +137,8 @@ export default function Page() {
   const {
     handleSubmit: handleSubmitChangeRole,
     control: changeRoleControl,
-    setValue: setChangeRoleValue,
+    reset: resetChangeRoleForm,
+    formState: { errors: changeRoleErrors },
   } = useForm({
     resolver: zodResolver(changeRoleSchema),
     defaultValues: { roleIds: [] as string[] },
@@ -150,8 +151,8 @@ export default function Page() {
           id: data.id,
           identifier: data.identifier,
           name: data.name,
-          email: data.email || "",
-          username: data.username,
+          email: data.email,
+          username: data.username || "",
           password: "",
           roleIds: data.roles.map((role) => role.id),
         });
@@ -168,14 +169,15 @@ export default function Page() {
       },
       onChangeRole: (data: UserData) => {
         setChangeRoleTarget(data);
-        setChangeRoleValue(
-          "roleIds",
-          data.roles.map((role) => role.id)
-        );
+        // reset, not setValue: the dialog is unmounted at this point, so the
+        // Controller holding `roleIds` has not registered yet and a setValue
+        // lands on a field that does not exist. reset replaces the form's
+        // defaults, which is what the Controller reads when it does mount.
+        resetChangeRoleForm({ roleIds: data.roles.map((role) => role.id) });
         setOpenChangeRoleDialog(true);
       },
     }),
-    [reset, resetResetPasswordForm, setChangeRoleValue]
+    [reset, resetResetPasswordForm, resetChangeRoleForm]
   );
 
   const columns = useMemo(() => getColumns(actions), [actions]);
@@ -314,6 +316,16 @@ export default function Page() {
     }
   };
 
+  // Zod refuses an empty list, and an error on `roleIds` has nowhere obvious to
+  // land — the checklist is not an input. Without this the button looks broken:
+  // nothing submits, nothing turns red, nothing says why.
+  const onChangeRoleInvalid = () => {
+    // The checklist is not an input, so an error on `roleIds` has nowhere to
+    // render. Without this the button looks broken: nothing submits, nothing
+    // turns red, nothing says why.
+    toast.error(changeRoleErrors.roleIds?.message ?? "Pick at least one role");
+  };
+
   const onDelete = async () => {
     if (selectedData?.id) {
       await deleteAsync(selectedData.id);
@@ -407,6 +419,10 @@ export default function Page() {
                     disabled={isLoading}
                     {...register("identifier")}
                   />
+                  <FieldDescription>
+                    Optional. A staff or student number, if this workspace uses
+                    them.
+                  </FieldDescription>
                   <FieldError errors={[errors.identifier]} />
                 </Field>
 
@@ -443,6 +459,10 @@ export default function Page() {
                     disabled={isLoading}
                     {...register("username")}
                   />
+                  <FieldDescription>
+                    Optional. They can sign in with their email address, and
+                    pick a username themselves later.
+                  </FieldDescription>
                   <FieldError errors={[errors.username]} />
                 </Field>
 
@@ -572,7 +592,10 @@ export default function Page() {
           </DialogHeader>
           <form
             id="change-role-form"
-            onSubmit={handleSubmitChangeRole(onChangeRoleSubmit)}
+            onSubmit={handleSubmitChangeRole(
+              onChangeRoleSubmit,
+              onChangeRoleInvalid
+            )}
             noValidate
           >
             <Controller
@@ -583,7 +606,7 @@ export default function Page() {
                   <FieldLabel htmlFor="change-roles">Roles</FieldLabel>
                   <RoleChecklist
                     id="change-roles"
-                    value={field.value}
+                    value={field.value ?? []}
                     onChange={field.onChange}
                     disabled={isChangingRole}
                   />

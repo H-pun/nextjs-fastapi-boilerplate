@@ -3,19 +3,22 @@ from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select, update, insert
+from sqlalchemy import delete, or_, select, update, insert
 from sqlalchemy.orm import Session
 from mypy_boto3_s3.client import S3Client
 
 from api.database import Role, User, UserIdentity, user_roles
 from api.core.pagination import paginate_select
-from api.core.security import hash_password, verify_password, create_access_token
+from api.core.security import (
+    hash_password, verify_password, create_access_token, verify_keycloak_token,
+)
 from api.core.config import settings
 from api.services.role import guard_last_admin
+from api.seeds.users import MEMBER_ROLE_ID
 from api.schemas.user import (
     GetUserRequest, UpdateUserRequest, AuthenticateUserRequest,
     AuthenticateUserResponse, UpdatePasswordRequest, AdminResetPasswordRequest,
-    CreateUserRequest, ChangeRoleRequest,
+    CreateUserRequest, ChangeRoleRequest, OidcLoginRequest,
 )
 from api.schemas.pagination import Pagination
 
@@ -30,7 +33,11 @@ def _resolve_roles(db: Session, role_ids: list[UUID]) -> list[Role]:
 
 
 async def authenticate(db: Session, *, data: AuthenticateUserRequest) -> AuthenticateUserResponse:
-    stmt = select(User).where(User.username == data.username)
+    # Either name works. Accounts created through a provider have no username
+    # until the person picks one, so the address is all they could type.
+    stmt = select(User).where(
+        or_(User.username == data.username, User.email == data.username)
+    )
     user = db.execute(stmt).scalars().one_or_none()
     # A null password means the account signs in through an external provider
     # only; reject it here rather than letting verify_password see a None.
@@ -40,6 +47,134 @@ async def authenticate(db: Session, *, data: AuthenticateUserRequest) -> Authent
     response = AuthenticateUserResponse.model_validate(user)
     # The token carries identity only. Permissions are read from the database
     # per request, so revoking one takes effect without waiting for expiry.
+    response.access_token = create_access_token(subject=user.id)
+    return response
+
+
+def _link_by_email(db: Session, *, provider: str, email: str, verified: bool) -> User | None:
+    """The account this address already belongs to, when it is safe to say so.
+
+    One person with two providers should land on one account, not two. The only
+    thing tying those sign-ins together is the email address — and an address is
+    a claim about the world, not proof of anything, so acting on it needs both
+    of these to hold:
+
+    - the provider marks the address verified, and
+    - the provider is named in EMAIL_TRUSTED_PROVIDERS.
+
+    The second is the one that matters. Any provider can assert
+    `email_verified: true`; what the list records is which of them actually
+    checks before doing so. Without it, a provider that hands out addresses
+    freely becomes a way onto an account created through a stricter one.
+
+    Returns None whenever the answer is uncertain, which leaves the caller to
+    create a separate account. Linking then happens from a signed-in session,
+    where the person has already proved who they are.
+    """
+    if not verified or provider not in settings.EMAIL_TRUSTED_PROVIDERS:
+        return None
+    return db.execute(
+        select(User).where(User.email == email, User.email_verified.is_(True))
+    ).scalar_one_or_none()
+
+
+def _verify(provider: str, id_token: str) -> dict:
+    """Check a provider's token and hand back its claims.
+
+    The one place that knows how each provider is verified. Adding another means
+    adding a branch here — issuers, audiences and JWKS URLs differ enough that
+    a table would only hide the differences rather than remove them.
+    """
+    if provider == "keycloak" and settings.keycloak_enabled:
+        return verify_keycloak_token(id_token)
+
+    # Not configured, or a name this build has never heard of. Both are a 404:
+    # naming the difference would say which providers exist.
+    raise HTTPException(status_code=404, detail="Sign-in with this provider is not configured")
+
+
+async def authenticate_oidc(db: Session, *, provider: str, data: OidcLoginRequest) -> AuthenticateUserResponse:
+    """Trade a verified provider token for one of this app's own.
+
+    Everything downstream — `get_current_user`, every `Security(...)` guard —
+    keeps seeing a single kind of token, so nothing else has to know any
+    provider exists.
+    """
+    claims = _verify(provider, data.id_token)
+    subject = claims.get("sub")
+    if not subject:
+        raise HTTPException(status_code=401, detail="Token carries no subject")
+
+    # Who someone is here is decided by (provider, subject) and nothing else.
+    # An address can be re-registered; this pair cannot.
+    identity = db.execute(
+        select(UserIdentity).where(
+            UserIdentity.provider == provider,
+            UserIdentity.subject == subject,
+        )
+    ).scalar_one_or_none()
+
+    user = db.get(User, identity.user_id) if identity else None
+
+    if not user:
+        email = claims.get("email")
+        verified = bool(claims.get("email_verified"))
+
+        # Every account here is reached by its address, so one that arrives
+        # without it could not be signed into or matched against a second
+        # provider later. Keycloak treats email as optional per user; this app
+        # does not, and says so rather than creating a row nobody can use.
+        if not email:
+            raise HTTPException(
+                status_code=400,
+                detail="Your account has no email address. Add one with your identity provider and sign in again.",
+            )
+
+        # Same person, second provider: attach the new identity rather than
+        # opening a second account beside the first.
+        user = _link_by_email(db, provider=provider, email=email, verified=verified)
+
+        if user:
+            user.identities.append(UserIdentity(provider=provider, subject=subject))
+        else:
+            member_role = db.get(Role, MEMBER_ROLE_ID)
+            if not member_role:
+                # Without the seeder having run there is no role to grant, and
+                # an account with no roles holds no scopes — better to say so
+                # than to create someone who cannot do anything.
+                raise HTTPException(status_code=503, detail="Default role missing; run the seeder")
+
+            # Someone else already answers to this address, and nothing here
+            # says the two are the same person — either the provider has not
+            # verified it, or it is not one this deployment trusts to check.
+            # Two accounts must never claim one address, so refuse and let an
+            # admin decide.
+            if db.scalar(select(User.id).where(User.email == email)):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Another account already uses this email address.",
+                )
+
+            # `username` and `identifier` are left null on purpose. Both belong
+            # to this app, and a provider has no say in either — the person
+            # picks a username later, an admin fills in the identifier.
+            user = User(
+                name=(claims.get("name") or email).title(),
+                email=email,
+                email_verified=verified,
+                # Null password: this account has no local way in.
+                # `authenticate()` rejects those explicitly rather than
+                # comparing against a placeholder hash.
+                password=None,
+            )
+            user.roles = [member_role]
+            user.identities = [UserIdentity(provider=provider, subject=subject)]
+            db.add(user)
+
+        db.commit()
+        db.refresh(user)
+
+    response = AuthenticateUserResponse.model_validate(user)
     response.access_token = create_access_token(subject=user.id)
     return response
 

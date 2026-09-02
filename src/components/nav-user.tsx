@@ -25,12 +25,12 @@ import { BadgeCheck, ChevronsUpDown, LogOut, Palette } from "lucide-react";
 export function NavUser({
   user = {
     name: "Loading...",
-    identifier: "...",
+    email: "…",
   },
 }: {
   user?: {
     name: string;
-    identifier: string;
+    email?: string;
     roles?: { name: string }[];
     avatar?: string;
   };
@@ -90,7 +90,9 @@ export function NavUser({
               <span className="truncate font-semibold capitalize">
                 {user.name.toLowerCase()}
               </span>
-              <span className="truncate text-xs">{user.identifier}</span>
+              {/* The one thing every account has, and what they sign in with
+                  when they have not picked a username. */}
+              <span className="truncate text-xs">{user.email}</span>
             </div>
           </div>
         </DropdownMenuLabel>

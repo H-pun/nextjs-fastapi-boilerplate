@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
+import { publicProviders } from "@/lib/auth-providers";
 import { LoginForm } from "./_components/login-form";
 import { LoginHero } from "./_components/login-hero";
 import { ThemeMenu } from "./_components/theme-menu";
@@ -53,7 +54,10 @@ export default async function Page({
               Use your account credentials to continue.
             </p>
 
-            <LoginForm callbackUrl={callbackUrl} />
+            <LoginForm
+              callbackUrl={callbackUrl}
+              providers={publicProviders}
+            />
           </div>
         </div>
 

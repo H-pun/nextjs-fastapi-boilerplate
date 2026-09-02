@@ -26,6 +26,7 @@ def member_token(db: Session) -> dict[str, str]:
         id=MEMBER_USER_ID,
         name="Plain Member",
         username="plainmember",
+        email="plainmember@test.com",
         password=hash_password("Member123!"),
         identifier="1000000001",
     )

@@ -21,6 +21,41 @@ def test_auth_success(client: TestClient, user_token: dict[str, str]):
     assert "password" not in current_user
 
 
+def test_sign_in_with_an_email_address(client: TestClient, db: Session):
+    """Accounts created through a provider have no username until the person
+    picks one, so the address has to work in its place."""
+    user = db.scalar(select(User).where(User.username == "admin"))
+    user.email = "admin@test.com"
+    db.commit()
+
+    r = client.post(
+        f"{base_url}/login",
+        json={"username": "admin@test.com", "password": "Admin123!"},
+    )
+    assert r.status_code == 200
+    assert r.json()["id"] == str(user.id)
+
+
+def test_listing_survives_a_placeholder_address(
+    client: TestClient, db: Session, user_token: dict[str, str]
+):
+    """The migration fills in an address for rows that predate the rule, and
+    `AuthenticateUserResponse.email` is an `EmailStr` — so a placeholder that
+    fails validation takes the whole listing down with it, not just its own row.
+    """
+    user = User(
+        name="Placeholder Address",
+        email=f"user-{uuid4()}@example.com",
+        password=None,
+    )
+    user.roles = [db.get(Role, MEMBER_ROLE_ID)]
+    db.add(user)
+    db.commit()
+
+    r = client.get(base_url, headers=user_token)
+    assert r.status_code == 200
+
+
 def test_auth_fail(client: TestClient):
     r = client.get(f"{base_url}/me")
     assert r.status_code == 401
@@ -69,6 +104,7 @@ def test_delete_user(client: TestClient, db: Session, user_token: dict[str, str]
         id=uuid4(),
         name="To Be Deleted",
         username="tobedeleted",
+        email="tobedeleted@test.com",
         password="temporary",
         identifier="9999999999",
     )

@@ -54,7 +54,7 @@ export default function ProfileForm() {
       reset({
         id: data.id,
         email: data.email || "",
-        username: data.username,
+        username: data.username || "",
       });
     }
   }, [data, reset]);
@@ -66,7 +66,11 @@ export default function ProfileForm() {
       <Field>
         <FieldLabel htmlFor="username">Username</FieldLabel>
         <Input id="username" {...register("username")} disabled={isLoading} />
-        <FieldDescription>Change your username. This will be used for login.</FieldDescription>
+        <FieldDescription>
+          {data && !data.username
+            ? "Pick a username to sign in with directly. Until then, use your email address."
+            : "Change your username. This will be used for login."}
+        </FieldDescription>
         <FieldError errors={[errors.username]} />
       </Field>
 

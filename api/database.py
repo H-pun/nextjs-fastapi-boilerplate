@@ -81,11 +81,22 @@ class User(Base):
     """
 
     __tablename__ = 'users'
-    identifier: Mapped[str] = mapped_column(unique=True)
+    # A human-facing number — staff id, student number. No provider issues one,
+    # so it stays null for accounts that arrive through one until an admin
+    # fills it in. Storing the provider's subject here would only duplicate
+    # `user_identities.subject` under a name that promises something else.
+    identifier: Mapped[str] = mapped_column(unique=True, nullable=True)
     name: Mapped[str] = mapped_column()
-    username: Mapped[str] = mapped_column(unique=True)
+    # Optional, and the app's to give. A provider's idea of a username is unique
+    # inside its own realm, not here, so taking it would mean inventing a
+    # suffixed near-miss the moment two collide. Someone who wants one picks it;
+    # until then the address does the same job.
+    username: Mapped[str] = mapped_column(unique=True, nullable=True)
     password: Mapped[str] = mapped_column(nullable=True)
-    email: Mapped[str] = mapped_column(unique=True, nullable=True)
+    # The one thing every account has. Sign-in accepts it in place of a
+    # username, and it is what a second provider would be matched against, so a
+    # row without one could be reached no way at all.
+    email: Mapped[str] = mapped_column(unique=True)
     email_verified: Mapped[bool] = mapped_column(default=False)
     avatar: Mapped[str] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

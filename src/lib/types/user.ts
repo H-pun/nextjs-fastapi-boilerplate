@@ -4,12 +4,17 @@ import { PaginationQuery } from "./pagination";
 import type { Role } from "./access";
 
 export const userSchema = z.object({
-  id: z.uuid().nullish(),
-  roleIds: z.array(z.uuid()).min(1, "Pick at least one role"),
-  identifier: z.string().min(1, "Identifier is required").optional(),
+  id: z.guid().nullish(),
+  // guid, not uuid: z.uuid() enforces the RFC 9562 version and variant bits,
+  // which the seeded ids (11111111-1111-1111-1111-111111111001) do not carry.
+  // Rows created in the app do, so uuid() would reject exactly the roles this
+  // app ships with — every one of them.
+  roleIds: z.array(z.guid()).min(1, "Pick at least one role"),
+  identifier: z.string().optional(),
   name: z.string().min(1, "Name is required").optional(),
-  username: z.string().min(1, "Username is required"),
-  email: z.email("Invalid email address").or(z.literal("")),
+  // Every account is reached by its address; a username is optional on top.
+  email: z.email("Email is required"),
+  username: z.string().optional().or(z.literal("")),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters long")
@@ -18,7 +23,7 @@ export const userSchema = z.object({
 });
 
 export const changeRoleSchema = z.object({
-  roleIds: z.array(z.uuid()).min(1, "Pick at least one role"),
+  roleIds: z.array(z.guid()).min(1, "Pick at least one role"),
 });
 
 export const passwordSchema = z
@@ -54,10 +59,13 @@ export interface GetUserQuery extends PaginationQuery {
 
 export interface UserData {
   id: string;
-  identifier: string;
+  /** Null until an admin assigns one — no provider issues these. */
+  identifier?: string;
   name: string;
-  username: string;
-  email?: string;
+  /** Null until the person picks one. Provider sign-ins arrive without it. */
+  username?: string;
+  /** Always present — it is how every account is reached. */
+  email: string;
   roles: Role[];
   avatar?: string;
   accessToken?: string;

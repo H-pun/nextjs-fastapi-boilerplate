@@ -68,6 +68,10 @@ def seed_users(db: Session) -> None:
             name="Super Administrator",
             identifier="0000000000",
             username="admin",
+            # Every account is reached by its address. This one is a placeholder
+            # for a seeded account that nobody will email — change it, along with
+            # the password, before this reaches anywhere real.
+            email="admin@example.com",
             password=hash_password("Admin123!"),
         )
         user.roles = [admin_role]
