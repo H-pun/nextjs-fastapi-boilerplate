@@ -20,6 +20,8 @@ declare module "@tanstack/react-table" {
     range?: [number, number];
     unit?: string;
     icon?: React.ComponentType<React.ComponentProps<"svg">>;
+    /** Shrink this column to the width required by its content. */
+    fitContent?: boolean;
   }
 }
 

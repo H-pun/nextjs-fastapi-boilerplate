@@ -52,7 +52,9 @@ export function getColumnPinningStyle<TData>({
         ? `${offset ?? column.getAfter("right")}px`
         : undefined,
     position: isPinned ? "sticky" : "relative",
-    width: column.getSize(),
+    // A percentage width makes an auto-layout table shrink this column to its
+    // minimum content width, while the other columns absorb remaining space.
+    width: column.columnDef.meta?.fitContent ? "1%" : column.getSize(),
     zIndex: isPinned ? 1 : undefined,
   };
 }

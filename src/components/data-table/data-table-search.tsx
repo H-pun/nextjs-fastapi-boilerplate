@@ -68,7 +68,7 @@ export function DataTableSearch({
   };
 
   return (
-    <InputGroup className="h-8 w-56">
+    <InputGroup className="w-56">
       <InputGroupAddon className="pl-2.5">
         <Search className="size-4" />
       </InputGroupAddon>

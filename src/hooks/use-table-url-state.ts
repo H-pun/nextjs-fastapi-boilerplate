@@ -22,6 +22,9 @@ export function useTableUrlState() {
   return useMemo(() => {
     const page = Number(searchParams.get("page"));
     const perPage = Number(searchParams.get("perPage"));
+    const joinOperator = searchParams.get("joinOperator");
+    const normalizedJoinOperator: "and" | "or" =
+      joinOperator === "or" ? "or" : "and";
 
     return {
       page: Number.isInteger(page) && page > 0 ? page : 1,
@@ -29,7 +32,7 @@ export function useTableUrlState() {
       search: searchParams.get("search") ?? "",
       sort: searchParams.get("sort") ?? "",
       filters: searchParams.get("filters") ?? "",
-      joinOperator: searchParams.get("joinOperator") ?? "and",
+      joinOperator: normalizedJoinOperator,
     };
   }, [searchParams]);
 }

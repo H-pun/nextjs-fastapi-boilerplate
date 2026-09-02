@@ -1,62 +1,85 @@
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 
 import { ColumnDef } from "@tanstack/react-table";
 
 import type { UserData } from "@/lib/types/user";
-import { Ellipsis } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { AtSign, CalendarDays, Phone, Text } from "lucide-react";
 import { format } from "date-fns";
+import {
+  UserRowActions,
+  type UserRowActionsConfig,
+} from "./_components/user-row-actions";
 
 export const getColumns = (
-  onEdit: (data: UserData) => void,
-  onDelete: (data: UserData) => void,
-  onResetPassword: (data: UserData) => void,
-  onChangeRole: (data: UserData) => void
+  actions: UserRowActionsConfig
 ): ColumnDef<UserData>[] => [
   {
+    id: "id",
     accessorKey: "id",
     header: "ID",
     enableSorting: false,
     meta: { label: "ID" },
   },
   {
+    id: "identifier",
     accessorKey: "identifier",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Identifier" />
     ),
+    enableColumnFilter: true,
     enableHiding: false,
-    meta: { label: "Identifier" },
+    meta: {
+      label: "Identifier",
+      placeholder: "Search identifier...",
+      variant: "text",
+      icon: Text,
+    },
   },
   {
+    id: "name",
     accessorKey: "name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Name" />
     ),
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    enableColumnFilter: true,
     enableHiding: false,
-    meta: { label: "Name" },
+    meta: {
+      label: "Name",
+      placeholder: "Search name...",
+      variant: "text",
+      icon: Text,
+    },
   },
   {
+    id: "email",
     accessorKey: "email",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Email" />
     ),
     cell: ({ row }) => row.original.email || "—",
-    meta: { label: "Email" },
+    enableColumnFilter: true,
+    meta: {
+      label: "Email",
+      placeholder: "Search email...",
+      variant: "text",
+      icon: AtSign,
+    },
   },
   {
+    id: "username",
     accessorKey: "username",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Username" />
     ),
-    meta: { label: "Username" },
+    enableColumnFilter: true,
+    meta: {
+      label: "Username",
+      placeholder: "Search username...",
+      variant: "text",
+      icon: Text,
+    },
   },
   {
     id: "roles",
@@ -77,62 +100,48 @@ export const getColumns = (
       ),
   },
   {
+    id: "phone",
     accessorKey: "phone",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Phone" />
     ),
     cell: ({ row }) => row.original.phone || "—",
-    meta: { label: "Phone" },
+    enableColumnFilter: true,
+    meta: {
+      label: "Phone",
+      placeholder: "Search phone...",
+      variant: "text",
+      icon: Phone,
+    },
   },
   {
+    id: "createdAt",
     accessorKey: "createdAt",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Created" />
     ),
     cell: ({ row }) =>
       format(new Date(row.original.createdAt), "d MMM yyyy HH:mm"),
-    meta: { label: "Created at" },
+    enableColumnFilter: true,
+    meta: { label: "Created at", variant: "date", icon: CalendarDays },
   },
   {
+    id: "updatedAt",
     accessorKey: "updatedAt",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Updated" />
     ),
     cell: ({ row }) =>
       format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm"),
-    meta: { label: "Updated at" },
+    enableColumnFilter: true,
+    meta: { label: "Updated at", variant: "date", icon: CalendarDays },
   },
   {
     id: "actions",
     enableHiding: false,
     enableSorting: false,
     size: 48,
-    cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="text-muted-foreground">
-            <Ellipsis />
-            <span className="sr-only">Actions for {row.original.name}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onEdit(row.original)}>
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => onDelete(row.original)}
-          >
-            Delete
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onResetPassword(row.original)}>
-            Reset Password
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onChangeRole(row.original)}>
-            Change Role
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
+    meta: { fitContent: true },
+    cell: ({ row }) => <UserRowActions user={row.original} {...actions} />,
   },
 ];

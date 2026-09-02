@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useDataTable } from "@/hooks/use-server-data-table";
+import { useDataTable } from "@/hooks/use-data-table";
+import { toQueryParams, useTableUrlState } from "@/hooks/use-table-url-state";
 
-import { cn } from "@/lib/utils";
 import { getRoles } from "@/lib/api/access";
 import { RoleChecklist } from "./_components/role-checklist";
+import { RoleFilter } from "./_components/role-filter";
 import { getColumns } from "./columns";
 import {
   changeRole,
@@ -19,8 +21,11 @@ import {
 } from "@/lib/api/user";
 import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table/data-table";
-import { DataTableSettingsMenu } from "@/components/data-table/data-table-settings-menu";
+import { DataTableAdvancedToolbar } from "@/components/data-table/data-table-advanced-toolbar";
+import { DataTableFilterList } from "@/components/data-table/data-table-filter-list";
+import { DataTableSearch } from "@/components/data-table/data-table-search";
 import { DataTableSkeleton } from "@/components/data-table/data-table-skeleton";
+import { DataTableSortList } from "@/components/data-table/data-table-sort-list";
 import { Input } from "@/components/ui/input";
 import {
   Field,
@@ -37,20 +42,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Filter,
-  FilterActions,
-  FilterContent,
-  FilterTrigger,
-} from "@/components/filter";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,7 +64,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   UserData,
   UserForm,
@@ -102,6 +93,8 @@ const DESCRIPTION =
 
 export default function Page() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const tableUrlState = useTableUrlState();
 
   // Shared with RoleChecklist through the query cache, so the filter and the
   // form always offer the same list.
@@ -111,7 +104,6 @@ export default function Page() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const [openFilters, setOpenFilters] = useState(false);
   const [openSheet, setOpenSheet] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openResetPasswordDialog, setOpenResetPasswordDialog] = useState(false);
@@ -152,23 +144,9 @@ export default function Page() {
     defaultValues: { roleIds: [] as string[] },
   });
 
-  const {
-    data,
-    filter,
-    table,
-    isFetching,
-    refetch,
-    queryParams,
-    activeQueryCount,
-    setFilter,
-    setQueryValue,
-    resetQuery,
-    applyQuery,
-  } = useDataTable({
-    key: "users",
-    fetch: getUsers,
-    columns: getColumns(
-      (data) => {
+  const actions = useMemo(
+    () => ({
+      onEdit: (data: UserData) => {
         reset({
           id: data.id,
           identifier: data.identifier,
@@ -181,25 +159,66 @@ export default function Page() {
         });
         setOpenSheet(true);
       },
-      (data) => {
+      onDelete: (data: UserData) => {
         setSelectedData(data);
         setOpenDeleteDialog(true);
       },
-      (data) => {
+      onResetPassword: (data: UserData) => {
         setSelectedData(data);
         resetResetPasswordForm({ newPassword: "" });
         setOpenResetPasswordDialog(true);
       },
-      (data) => {
+      onChangeRole: (data: UserData) => {
         setChangeRoleTarget(data);
         setChangeRoleValue(
           "roleIds",
           data.roles.map((role) => role.id)
         );
         setOpenChangeRoleDialog(true);
-      }
-    ),
-    hiddenColumns: ["id", "email", "createdAt", "updatedAt"],
+      },
+    }),
+    [reset, resetResetPasswordForm, setChangeRoleValue]
+  );
+
+  const columns = useMemo(() => getColumns(actions), [actions]);
+  const roleId = searchParams.get("roleId") ?? "";
+
+  const { data, isPending, isPlaceholderData, isFetching, refetch } = useQuery({
+    queryKey: [
+      "users",
+      tableUrlState.page,
+      tableUrlState.perPage,
+      tableUrlState.search,
+      tableUrlState.sort,
+      tableUrlState.filters,
+      tableUrlState.joinOperator,
+      roleId,
+    ],
+    queryFn: () =>
+      getUsers({
+        ...toQueryParams(tableUrlState),
+        ...(roleId && { roleId }),
+      }),
+    placeholderData: (previous) => previous,
+  });
+
+  const { table } = useDataTable({
+    data: data?.items ?? [],
+    columns,
+    pageCount: data?.totalPages ?? -1,
+    rowCount: data?.totalItems ?? 0,
+    enableAdvancedFilter: true,
+    shallow: false,
+    getRowId: (row) => row.id,
+    initialState: {
+      columnVisibility: {
+        id: false,
+        email: false,
+        createdAt: false,
+        updatedAt: false,
+      },
+      columnPinning: { right: ["actions"] },
+    },
   });
 
   const invalidate = () =>
@@ -312,94 +331,36 @@ export default function Page() {
     isResettingPassword ||
     isChangingRole;
 
+  const dimWhileFetching = isPlaceholderData
+    ? "opacity-60 transition-opacity"
+    : "";
+
   const toolbar = (
-    <div className="flex w-full flex-col gap-2 p-1 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex flex-1 flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-64">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input
-            type="search"
-            aria-label="Search users"
-            placeholder="Search users..."
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            className="h-8 pl-8"
-          />
-        </div>
-
-        <Filter open={openFilters} onOpenChange={setOpenFilters}>
-          <FilterTrigger disabled={isFetching} activeCount={activeQueryCount} />
-
-          <FilterContent align="start" className="w-72">
-            <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={queryParams.roleId ?? ""}
-                  onValueChange={(value) => setQueryValue("roleId", value)}
-                >
-                  <SelectTrigger id="role" className="w-full">
-                    <SelectValue placeholder="All roles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="updated-within">Updated within</Label>
-                <Select
-                  value={String(queryParams.updatedWithin ?? "")}
-                  onValueChange={(value) =>
-                    setQueryValue("updatedWithin", Number(value))
-                  }
-                >
-                  <SelectTrigger id="updated-within" className="w-full">
-                    <SelectValue placeholder="Any time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">Last 7 days</SelectItem>
-                    <SelectItem value="30">Last 30 days</SelectItem>
-                    <SelectItem value="90">Last 90 days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <FilterActions
-                onReset={resetQuery}
-                onApply={() => {
-                  applyQuery();
-                  setOpenFilters(false);
-                }}
-              />
-            </div>
-          </FilterContent>
-        </Filter>
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
-        <DataTableSettingsMenu
-          table={table}
-          onRefresh={refetch}
-          isRefreshing={isFetching}
+    <div className="flex w-full items-start gap-2 p-1">
+      <DataTableAdvancedToolbar
+        table={table}
+        className="flex-1 p-0"
+        onRefresh={refetch}
+        isRefreshing={isFetching}
+      >
+        <DataTableSearch
+          placeholder="Search name, email, username..."
+          label="Search users"
         />
-        <Button
-          onClick={() => {
-            setOpenSheet(true);
-            reset(defaultValues);
-          }}
-          disabled={isLoading}
-          size="sm"
-        >
-          <Plus />
-          Add user
-        </Button>
-      </div>
+        <DataTableFilterList table={table} shallow={false} />
+        <DataTableSortList table={table} />
+        <RoleFilter roles={roles} />
+      </DataTableAdvancedToolbar>
+      <Button
+        onClick={() => {
+          setOpenSheet(true);
+          reset(defaultValues);
+        }}
+        disabled={isLoading}
+      >
+        <Plus />
+        Add user
+      </Button>
     </div>
   );
 
@@ -408,12 +369,13 @@ export default function Page() {
       <div className="mx-auto w-full max-w-7xl space-y-6">
         <PageHeader title={TITLE} description={DESCRIPTION} />
 
-        {!data && isFetching ? (
+        {isPending ? (
           <DataTableSkeleton columnCount={6} filterCount={2} />
         ) : (
           <DataTable
             table={table}
-            className={cn(isFetching && "opacity-60 transition-opacity")}
+            className={dimWhileFetching}
+            onRowClick={actions.onEdit}
           >
             {toolbar}
           </DataTable>
