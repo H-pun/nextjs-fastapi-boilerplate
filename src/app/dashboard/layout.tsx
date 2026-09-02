@@ -25,7 +25,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       <AppSidebar />
       <SidebarInset>
         <DashboardHeader />
-        <main className="flex-1 px-6 pt-7 pb-14">{children}</main>
+        <main className="min-w-0 flex-1 px-6 pt-7 pb-14">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );
