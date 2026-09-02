@@ -42,15 +42,19 @@ class AuthenticateUserResponse(BaseModel):
     access_token: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Set on list responses when `group_by` is active — the bucket this row sits in.
+    group_key: str | None = None
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+USERNAME_PATTERN = r"^[a-zA-Z0-9._-]+$"
 
 class UpdateUserRequest(BaseModel):
     identifier: str | None = Field("", min_length=1, max_length=50, examples=['EMP-0001'])
     name: str | None = Field("", max_length=50, examples=['John Doe'])
     email: EmailStr | Literal[""] = Field("", examples=['johndoe@example.com'])
-    username: str | None = Field("", max_length=25, pattern=r'^[a-zA-Z0-9]+$', examples=['johndoe'])
+    username: str | None = Field("", max_length=25, pattern=USERNAME_PATTERN, examples=['johndoe'])
 
 class CreateUserRequest(BaseModel):
     identifier: str | None = Field(None, max_length=50, examples=['EMP-0001'])
@@ -58,7 +62,7 @@ class CreateUserRequest(BaseModel):
     # The address is how every account is reached; a username is a convenience
     # on top of it, and the person can add one later from their profile.
     email: EmailStr = Field(..., examples=['johndoe@example.com'])
-    username: str | None = Field(None, max_length=25, pattern=r'^[a-zA-Z0-9]+$', examples=['johndoe'])
+    username: str | None = Field(None, max_length=25, pattern=USERNAME_PATTERN, examples=['johndoe'])
     password: str = Field(..., min_length=8, examples=['securepassword'])
     role_ids: list[UUID] = Field(..., min_length=1)
 

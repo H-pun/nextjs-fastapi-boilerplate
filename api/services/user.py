@@ -3,12 +3,12 @@ from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, func, insert, or_, select, update
+from sqlalchemy.orm import Session, selectinload
 from mypy_boto3_s3.client import S3Client
 
 from api.database import Role, User, UserIdentity, user_roles
-from api.core.pagination import paginate_select
+from api.core.pagination import EMPTY_GROUP_KEY, paginate_select
 from api.core.security import (
     hash_password, verify_password, create_access_token, verify_keycloak_token,
 )
@@ -21,6 +21,17 @@ from api.schemas.user import (
     CreateUserRequest, ChangeRoleRequest, OidcLoginRequest,
 )
 from api.schemas.pagination import Pagination
+
+
+def _primary_role_name():
+    """First role alphabetically — used when grouping users with many roles."""
+    return (
+        select(func.min(Role.name))
+        .select_from(user_roles.join(Role, user_roles.c.role_id == Role.id))
+        .where(user_roles.c.user_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
 
 
 def _resolve_roles(db: Session, role_ids: list[UUID]) -> list[Role]:
@@ -224,8 +235,19 @@ async def admin_reset_password(db: Session, *, id_user: UUID, data: AdminResetPa
     db.commit()
 
 
+def _users_by_role_membership_stmt():
+    """One row per (user, role) — users with many roles appear in every bucket."""
+    return (
+        select(User)
+        .options(selectinload(User.roles))
+        .outerjoin(user_roles, User.id == user_roles.c.user_id)
+        .outerjoin(Role, user_roles.c.role_id == Role.id)
+    )
+
+
 async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[AuthenticateUserResponse]:
-    stmt = select(User)
+    group_by_roles = filters.group_by == "roles"
+    stmt = _users_by_role_membership_stmt() if group_by_roles else select(User).options(selectinload(User.roles))
 
     if filters.role_id:
         stmt = stmt.where(
@@ -238,11 +260,14 @@ async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[Au
         stmt = stmt.filter(User.updated_at >= since)
 
     searchable = [User.name, User.identifier, User.email, User.username]
+    primary_role = _primary_role_name()
+    roles_sort_col = Role.name if group_by_roles else primary_role
     sort_map = {
         "identifier": User.identifier,
         "name": User.name,
         "email": User.email,
         "username": User.username,
+        "roles": roles_sort_col,
         "created_at": User.created_at,
         "updated_at": User.updated_at,
         "createdAt": User.created_at,
@@ -257,14 +282,46 @@ async def get_all_user(db: Session, *, filters: GetUserRequest) -> Pagination[Au
         "updatedAt": User.updated_at,
     }
 
-    return paginate_select(
+    group_map = {
+        "identifier": User.identifier,
+        "name": User.name,
+        "email": User.email,
+        "username": User.username,
+        "roles": roles_sort_col,
+    }
+
+    page = paginate_select(
         db,
         stmt,
         filters=filters,
         searchable=searchable,
         sort_map=sort_map,
         filter_map=filter_map,
+        group_map=group_map,
         default_sort=User.identifier,
+    )
+
+    keys = page.item_group_keys
+    items: list[AuthenticateUserResponse] = []
+    for index, user in enumerate(page.items):
+        item = AuthenticateUserResponse.model_validate(user)
+        if keys is not None:
+            raw_key = keys[index]
+            item = item.model_copy(
+                update={
+                    "group_key": None if raw_key == EMPTY_GROUP_KEY else raw_key
+                }
+            )
+        items.append(item)
+
+    return Pagination[AuthenticateUserResponse](
+        total_items=page.total_items,
+        total_pages=page.total_pages,
+        page_size=page.page_size,
+        page=page.page,
+        items=items,
+        group_by=page.group_by,
+        groups=page.groups,
     )
 
 

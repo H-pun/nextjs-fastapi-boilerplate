@@ -6,12 +6,12 @@ from decimal import Decimal, InvalidOperation
 from fastapi import HTTPException
 from pydantic import BaseModel, ValidationError
 from typing import Any, Dict, List, Optional, Sequence, TypeVar
-from sqlalchemy import Date, DateTime, Select, and_, func, not_, or_, cast, String
+from sqlalchemy import Date, DateTime, Select, and_, func, not_, or_, cast, String, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql import nulls_last
 
-from api.schemas.pagination import FilterItem, FilterParams, Pagination, SortItem
+from api.schemas.pagination import FilterItem, FilterParams, GroupSummary, Pagination, SortItem
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -242,6 +242,82 @@ def _apply_sorting(
     return stmt
 
 
+EMPTY_GROUP_KEY = "__empty__"
+
+
+def _serialize_group_key(value: Any) -> str:
+    if value is None:
+        return EMPTY_GROUP_KEY
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
+    return str(value)
+
+
+def _format_group_label(value: Any) -> str:
+    if value is None:
+        return "Empty"
+    if isinstance(value, datetime):
+        return value.strftime("%d %b %Y %H:%M")
+    return str(value)
+
+
+def _resolve_group_column(
+    group_by: str | None,
+    group_map: Dict[str, ColumnElement[Any]],
+) -> ColumnElement[Any] | None:
+    if not group_by:
+        return None
+    group_col = group_map.get(group_by)
+    if group_col is None:
+        raise HTTPException(
+            status_code=400, detail=f"`{group_by}` is not groupable"
+        )
+    return group_col
+
+
+def _apply_group_sort(
+    stmt: Select,
+    group_col: ColumnElement[Any],
+) -> Select:
+    return _apply_sort(stmt, group_col, "asc")
+
+
+def _group_column_label(group_by: str) -> str:
+    return f"__group_{group_by}"
+
+
+def _fetch_group_summaries(
+    session: Session,
+    working: Select,
+    group_by: str,
+) -> list[GroupSummary]:
+    subq = working.order_by(None).subquery()
+    label = _group_column_label(group_by)
+    if label not in subq.c:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Group column `{label}` is missing from the filtered query",
+        )
+    col = subq.c[label]
+    stmt = (
+        select(col, func.count())
+        .select_from(subq)
+        .group_by(col)
+        .order_by(col.asc())
+    )
+    rows = session.execute(stmt).all()
+    return [
+        GroupSummary(
+            id=_serialize_group_key(row[0]),
+            label=_format_group_label(row[0]),
+            count=row[1],
+        )
+        for row in rows
+    ]
+
+
 def _apply_sort(
     stmt: Select,
     sort_col: Optional[ColumnElement[Any]],
@@ -299,6 +375,8 @@ def paginate_select(
     sort_map: Dict[str, ColumnElement[Any]] = {},
     # peta nama kolom -> kolom untuk advanced filter (harus di-whitelist)
     filter_map: Dict[str, ColumnElement[Any]] = {},
+    # peta nama group -> kolom (harus di-whitelist)
+    group_map: Dict[str, ColumnElement[Any]] = {},
     # fallback sort bila order_by kosong/tidak valid
     default_sort: Optional[ColumnElement[Any]] = None,
 ) -> Pagination[Any]:
@@ -314,10 +392,24 @@ def paginate_select(
         base_stmt, filters=filters, searchable=searchable, filter_map=filter_map
     )
 
-    # 3) sort — always ends with the primary key so paging stays stable
-    working = _append_tiebreak(
-        _apply_sorting(working, filters, sort_map, default_sort), base_stmt
+    group_col = _resolve_group_column(filters.group_by, group_map)
+    labeled_group = None
+    if group_col is not None and filters.group_by:
+        labeled_group = group_col.label(_group_column_label(filters.group_by))
+        working = working.add_columns(labeled_group)
+
+    groups = (
+        _fetch_group_summaries(session, working, filters.group_by)
+        if labeled_group is not None and filters.group_by
+        else None
     )
+
+    # 3) group sort first, then user sort — always ends with the primary key
+    sorted_stmt = working
+    if labeled_group is not None:
+        sorted_stmt = _apply_group_sort(sorted_stmt, labeled_group)
+    sorted_stmt = _apply_sorting(sorted_stmt, filters, sort_map, default_sort)
+    working = _append_tiebreak(sorted_stmt, base_stmt)
 
     # 4) total count via subquery (hapus ORDER BY agar efisien/valid)
     count_stmt = func.count().select().select_from(working.order_by(None).subquery())
@@ -332,11 +424,17 @@ def paginate_select(
     page_stmt = working.limit(filters.page_size).offset(offset)
     result = session.execute(page_stmt)
 
-    # 5) ambil items (scalars jika select(ORMClass))
-    try:
-        items = result.scalars().all()
-    except Exception:
-        items = result.all()
+    # 5) ambil items (scalars jika select(ORMClass), else first column when grouped)
+    item_group_keys: list[str] | None = None
+    if labeled_group is not None:
+        rows = result.all()
+        items = [row[0] for row in rows]
+        item_group_keys = [_serialize_group_key(row[1]) for row in rows]
+    else:
+        try:
+            items = result.scalars().all()
+        except Exception:
+            items = result.all()
 
     return Pagination[Any](
         total_items=total_items,
@@ -344,4 +442,7 @@ def paginate_select(
         page_size=filters.page_size,
         page=filters.page,
         items=items,
+        group_by=filters.group_by,
+        groups=groups,
+        item_group_keys=item_group_keys,
     )

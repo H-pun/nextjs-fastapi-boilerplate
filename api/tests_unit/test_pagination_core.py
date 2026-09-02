@@ -62,8 +62,46 @@ def paginate(session: Session, filters: FilterParams):
         searchable=[Item.name],
         sort_map={"name": Item.name, "amount": Item.amount},
         filter_map={"name": Item.name, "amount": Item.amount},
+        group_map={"name": Item.name, "amount": Item.amount},
         default_sort=Item.name,
     )
+
+
+def test_group_by_returns_summaries_and_orders_rows(session: Session):
+    session.add(
+        Item(
+            id=4,
+            name="Alpha",
+            amount=Decimal("150.00"),
+            created_at=datetime(2026, 1, 4, tzinfo=timezone.utc),
+        )
+    )
+    session.commit()
+
+    result = paginate(session, FilterParams(group_by="name"))
+
+    assert result.group_by == "name"
+    assert result.groups is not None
+    assert {group.id for group in result.groups} == {
+        "__empty__",
+        "Alpha",
+        "Beta",
+    }
+    assert next(group for group in result.groups if group.id == "Alpha").count == 2
+    names = [item.name for item in result.items]
+    assert names.count("Alpha") == 2
+    assert names.index("Alpha") < names.index("Beta")
+    assert names.index("Beta") < names.index(None)
+    assert result.item_group_keys is not None
+    assert result.item_group_keys == ["Alpha", "Alpha", "Beta", "__empty__"]
+
+
+def test_invalid_group_by_is_rejected(session: Session):
+    with pytest.raises(HTTPException) as exc:
+        paginate(session, FilterParams(group_by="secret"))
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "`secret` is not groupable"
 
 
 def test_advanced_filter_and_multi_sort(session: Session):

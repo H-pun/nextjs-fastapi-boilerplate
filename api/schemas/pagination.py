@@ -50,6 +50,17 @@ class FilterParams(BaseModel):
     )
     sort: str | None = Field(None, description='JSON: [{"id","desc"}]')
     join_operator: Literal["and", "or"] = "and"
+    group_by: str | None = Field(
+        None, description="Column id to group rows by (server-side, whitelisted)"
+    )
+
+
+class GroupSummary(BaseModel):
+    """One bucket in a grouped table response."""
+
+    id: str
+    label: str
+    count: int
 
 
 class Pagination(BaseModel, Generic[T]):
@@ -58,6 +69,10 @@ class Pagination(BaseModel, Generic[T]):
     page_size: int
     page: int
     items: List[T]
+    group_by: str | None = None
+    groups: List[GroupSummary] | None = None
+    # Parallel to `items` when `group_by` is active — one bucket key per row.
+    item_group_keys: List[str] | None = None
 
     @classmethod
     def from_query(cls, model: T, query: SqlQuery, filter: FilterParams) -> "Pagination[T]":
