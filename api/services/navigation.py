@@ -1,4 +1,3 @@
-from uuid import UUID
 from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert

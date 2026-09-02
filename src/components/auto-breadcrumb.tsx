@@ -13,21 +13,17 @@ import {
 } from "@/components/ui/breadcrumb";
 import { z } from "zod";
 
-const uuidSchema = z.uuid();
-const isUUID = (str: string) => {
-  try {
-    uuidSchema.parse(str);
-    return true;
-  } catch {
-    return false;
-  }
-};
+// guid, not uuid: z.uuid() enforces the RFC 9562 version and variant bits,
+// which the seeded ids (11111111-1111-1111-1111-111111111001) do not carry.
+// Missing one here shows a raw id in the breadcrumb instead of hiding it.
+const idSchema = z.guid();
+const isId = (str: string) => idSchema.safeParse(str).success;
 
 export function AutoBreadcrumb() {
   const pathname = usePathname();
   const filteredPath = pathname
     .split("/")
-    .filter((seg) => seg && seg !== "dashboard" && !isUUID(seg));
+    .filter((seg) => seg && seg !== "dashboard" && !isId(seg));
   const segments = filteredPath.length ? filteredPath : ["home"];
   const pathMap = segments.map((seg, idx) => ({
     label: decodeURIComponent(seg),

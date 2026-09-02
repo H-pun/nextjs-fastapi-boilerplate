@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, or_, select, update, insert
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 from mypy_boto3_s3.client import S3Client
 

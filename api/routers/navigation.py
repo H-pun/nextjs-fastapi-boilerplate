@@ -1,5 +1,4 @@
-from uuid import UUID
-from fastapi import APIRouter, Security, HTTPException
+from fastapi import APIRouter, Security
 
 from api.core.deps import CurrentUser, SessionDep, get_current_user
 from api.database import User

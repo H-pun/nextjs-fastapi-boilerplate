@@ -1,8 +1,6 @@
-import os
 import secrets
 import warnings
-from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import (
     AnyHttpUrl,
@@ -41,8 +39,10 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[misc]
     @property
     def server_host(self) -> str:
-        # Use HTTPS for anything other than local development
-        if self.ENVIRONMENT == "local":
+        # HTTPS for anything but local development. "development", not "local":
+        # ENVIRONMENT cannot hold "local", so that comparison was never true and
+        # every environment got https://.
+        if self.ENVIRONMENT == "development":
             return f"http://{self.DOMAIN}"
         return f"https://{self.DOMAIN}"
 
