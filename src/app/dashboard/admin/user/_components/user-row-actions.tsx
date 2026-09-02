@@ -15,7 +15,6 @@ export interface UserRowActionsConfig {
   onEdit: (user: UserData) => void;
   onDelete: (user: UserData) => void;
   onResetPassword: (user: UserData) => void;
-  onChangeRole: (user: UserData) => void;
 }
 
 export function UserRowActions({
@@ -23,7 +22,6 @@ export function UserRowActions({
   onEdit,
   onDelete,
   onResetPassword,
-  onChangeRole,
 }: { user: UserData } & UserRowActionsConfig) {
   return (
     <DropdownMenu>
@@ -44,9 +42,6 @@ export function UserRowActions({
         <DropdownMenuItem onClick={() => onEdit(user)}>Edit</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onResetPassword(user)}>
           Reset password
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onChangeRole(user)}>
-          Change role
         </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={() => onDelete(user)}>
           Delete

@@ -4,7 +4,8 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { ColumnDef } from "@tanstack/react-table";
 
 import type { UserData } from "@/lib/types/user";
-import { AtSign, CalendarDays, Text } from "lucide-react";
+import { getPrimaryRoleName } from "@/lib/data-table-grouping";
+import { AtSign, CalendarDays, Shield, Text } from "lucide-react";
 import { format } from "date-fns";
 import {
   UserRowActions,
@@ -34,6 +35,7 @@ export const getColumns = (
       placeholder: "Search identifier...",
       variant: "text",
       icon: Text,
+      enableGrouping: true,
     },
   },
   {
@@ -50,6 +52,7 @@ export const getColumns = (
       placeholder: "Search name...",
       variant: "text",
       icon: Text,
+      enableGrouping: true,
     },
   },
   {
@@ -65,6 +68,7 @@ export const getColumns = (
       placeholder: "Search email...",
       variant: "text",
       icon: AtSign,
+      enableGrouping: true,
     },
   },
   {
@@ -79,13 +83,16 @@ export const getColumns = (
       placeholder: "Search username...",
       variant: "text",
       icon: Text,
+      enableGrouping: true,
     },
   },
   {
     id: "roles",
-    header: "Roles",
-    enableSorting: false,
-    meta: { label: "Roles" },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Roles" />
+    ),
+    accessorFn: (row) => getPrimaryRoleName(row.roles),
+    meta: { label: "Roles", icon: Shield, enableGrouping: true },
     cell: ({ row }) =>
       row.original.roles?.length ? (
         <div className="flex flex-wrap gap-1">

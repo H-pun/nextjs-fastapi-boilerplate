@@ -3,18 +3,25 @@ import z from "zod";
 import { PaginationQuery } from "./pagination";
 import type { Role } from "./access";
 
+const usernamePattern = /^[a-zA-Z0-9._-]+$/;
+
 export const userSchema = z.object({
+  // guid, not uuid: seeded ids (11111111-1111-1111-1111-…) skip RFC variant bits.
   id: z.guid().nullish(),
-  // guid, not uuid: z.uuid() enforces the RFC 9562 version and variant bits,
-  // which the seeded ids (11111111-1111-1111-1111-111111111001) do not carry.
-  // Rows created in the app do, so uuid() would reject exactly the roles this
-  // app ships with — every one of them.
   roleIds: z.array(z.guid()).min(1, "Pick at least one role"),
-  identifier: z.string().optional(),
-  name: z.string().min(1, "Name is required").optional(),
+  identifier: z.string().min(1, "Identifier is required"),
+  name: z.string().min(1, "Name is required"),
   // Every account is reached by its address; a username is optional on top.
   email: z.email("Email is required"),
-  username: z.string().optional().or(z.literal("")),
+  username: z.union([
+    z.literal(""),
+    z
+      .string()
+      .regex(
+        usernamePattern,
+        "Username may only contain letters, numbers, dots, dashes, and underscores"
+      ),
+  ]),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters long")
@@ -71,6 +78,8 @@ export interface UserData {
   accessToken?: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Server group bucket when the list request used `groupBy`. */
+  groupKey?: string | null;
 }
 
 /** Every scope a user holds, across all their roles. Mirrors `User.scope_keys`

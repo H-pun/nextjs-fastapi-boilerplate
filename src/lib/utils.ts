@@ -12,6 +12,36 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!error || typeof error !== "object" || !("response" in error)) {
+    return fallback;
+  }
+
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (!data || typeof data !== "object") return fallback;
+
+  const payload = data as {
+    errors?: Array<{ message?: string }> | { message?: string };
+    detail?: string | Array<{ msg?: string }>;
+  };
+
+  if (Array.isArray(payload.errors)) {
+    return payload.errors[0]?.message ?? fallback;
+  }
+
+  if (payload.errors && typeof payload.errors === "object" && "message" in payload.errors) {
+    return payload.errors.message ?? fallback;
+  }
+
+  if (typeof payload.detail === "string") return payload.detail;
+
+  if (Array.isArray(payload.detail)) {
+    return payload.detail[0]?.msg ?? fallback;
+  }
+
+  return fallback;
+}
+
 // Fungsi untuk mengubah snake_case ke camelCase
 export function convertKeysToCamelCase(data: unknown): unknown {
   if (Array.isArray(data)) {

@@ -25,12 +25,24 @@ export const getCurrentUser = async () => {
 };
 
 export const createUser = async (data: UserForm) => {
-  const response = await axios.post("/user", data);
+  const response = await axios.post("/user", {
+    identifier: data.identifier,
+    name: data.name,
+    username: data.username,
+    email: data.email ?? "",
+    password: data.password,
+    roleIds: data.roleIds,
+  });
   return response.data;
 };
 
 export const updateUser = async (data: UserForm) => {
-  const response = await axios.put(`/user/${data.id}`, data);
+  const response = await axios.put(`/user/${data.id}`, {
+    identifier: data.identifier,
+    name: data.name,
+    username: data.username,
+    email: data.email ?? "",
+  });
   return response.data;
 };
 
