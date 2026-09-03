@@ -108,8 +108,9 @@ function read(params: URLSearchParams, keys: string[]) {
  * The URL still wins whenever it says anything at all, so a link someone shared
  * opens the way they left it rather than the way the recipient last sat.
  *
- * Empty URL is ambiguous (Reset vs in-flight navigation), so memory is only
- * cleared via {@link clearTableMemory} — not by observing an empty query.
+ * Empty URL on this table clears memory (user removed filters/search). Empty
+ * URL after the pathname has already left is a leave-page race — those still
+ * keep {@link clearTableMemory} / the unmount flush instead of wiping early.
  */
 export function useTableMemory(
   persistKey?: string,
@@ -271,13 +272,21 @@ export function useTableMemory(
     }
     if (phase.current !== "live") return;
 
-    // Only persist non-empty snapshots. An empty URL during leave-page must
-    // not wipe memory — Reset calls clearTableMemory explicitly instead.
-    if (!serialised) return;
+    // Empty URL while still on this table means the user cleared prefs (chip
+    // remove, clearing search, etc.) — forget them. Empty URL after pathname
+    // has already left this slot is a leave-page race: keep lastSavedRef so
+    // the unmount flush can persist for the next visit. Reset also calls
+    // clearTableMemory explicitly.
+    if (!serialised) {
+      if (pathname === scopedKey) {
+        clearTableMemory(scopedKey);
+      }
+      return;
+    }
 
     lastSavedRef.current = serialised;
     localStorage.setItem(storageKey, serialised);
-  }, [serialised, storageKey]);
+  }, [serialised, storageKey, pathname, scopedKey]);
 
   React.useEffect(() => {
     return () => {
