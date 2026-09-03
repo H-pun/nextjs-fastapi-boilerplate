@@ -1,12 +1,13 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
 import { useMemo } from "react";
 
 import { useDataTableQueryKeys } from "@/components/data-table/data-table-query-keys";
 import { Button } from "@/components/ui/button";
+import { clearTableMemory } from "@/hooks/use-table-memory";
 
 /**
  * Clears the narrowing the user applied — search, sort, filters, and any
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
  * as if the table were filtered when it is not.
  */
 export function DataTableResetFilters() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   // The toolbar names these after its own table, so a page with two tables
   // clears the one the button belongs to rather than both.
@@ -61,9 +63,12 @@ export function DataTableResetFilters() {
       variant="ghost"
       size="sm"
       className="text-muted-foreground h-7 px-2 font-normal hover:text-foreground"
-      onClick={() =>
-        void clear(Object.fromEntries(cleared.map((key) => [key, null])))
-      }
+      onClick={() => {
+        // Empty URL alone is not enough to forget prefs (leave-page races look
+        // the same). Reset must clear localStorage explicitly.
+        clearTableMemory(pathname);
+        void clear(Object.fromEntries(cleared.map((key) => [key, null])));
+      }}
     >
       <X className="size-3.5" />
       Reset

@@ -398,10 +398,18 @@ def paginate_select(
         labeled_group = group_col.label(_group_column_label(filters.group_by))
         working = working.add_columns(labeled_group)
 
+    # Page 1 owns totals + group chips for infinite scroll; later chunks pass
+    # skip_list_meta so we only fetch the row window (and per-item group keys).
+    skip_meta = filters.skip_list_meta and filters.page > 1
+
     groups = (
-        _fetch_group_summaries(session, working, filters.group_by)
-        if labeled_group is not None and filters.group_by
-        else None
+        None
+        if skip_meta
+        else (
+            _fetch_group_summaries(session, working, filters.group_by)
+            if labeled_group is not None and filters.group_by
+            else None
+        )
     )
 
     # 3) group sort first, then user sort — always ends with the primary key
@@ -411,13 +419,25 @@ def paginate_select(
     sorted_stmt = _apply_sorting(sorted_stmt, filters, sort_map, default_sort)
     working = _append_tiebreak(sorted_stmt, base_stmt)
 
-    # 4) total count via subquery (hapus ORDER BY agar efisien/valid)
-    count_stmt = func.count().select().select_from(working.order_by(None).subquery())
-    total_items = session.execute(count_stmt).scalar_one()
+    if skip_meta:
+        total_items = 0
+        total_pages = filters.page
+    else:
+        # 4) total count via subquery (hapus ORDER BY agar efisien/valid)
+        count_stmt = (
+            func.count().select().select_from(working.order_by(None).subquery())
+        )
+        total_items = session.execute(count_stmt).scalar_one()
 
-    total_pages = (total_items + filters.page_size - 1) // filters.page_size if total_items > 0 else 1
-    if filters.page > total_pages:
-        raise HTTPException(status_code=400, detail="Page number exceeds total pages")
+        total_pages = (
+            (total_items + filters.page_size - 1) // filters.page_size
+            if total_items > 0
+            else 1
+        )
+        if filters.page > total_pages:
+            raise HTTPException(
+                status_code=400, detail="Page number exceeds total pages"
+            )
 
     # 4) paging
     offset = (filters.page - 1) * filters.page_size

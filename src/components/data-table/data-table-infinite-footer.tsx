@@ -15,40 +15,39 @@ interface DataTableInfiniteFooterProps extends React.ComponentProps<"div"> {
   infinite: DataTableInfiniteState;
 }
 
-/** Footer for infinite tables — loading spinner or end-of-list label. */
+/** Footer for infinite tables — row count, plus a spinner while the next chunk loads. */
 export function DataTableInfiniteFooter({
   infinite,
   className,
   ...props
 }: DataTableInfiniteFooterProps) {
-  if (infinite.isFetchingNextPage) {
-    return (
-      <div
-        className={cn(
-          "flex items-center justify-center gap-2 p-2 text-muted-foreground text-sm",
-          className
-        )}
-        {...props}
-      >
-        <Spinner />
+  const { loadedCount, totalItems, isFetchingNextPage, hasNextPage } = infinite;
+  const showCount = loadedCount > 0 || totalItems > 0;
+
+  if (!showCount && !isFetchingNextPage) return null;
+
+  return (
+    <div
+      className={cn(
+        "text-muted-foreground flex items-center justify-center gap-2 p-2 text-sm",
+        className
+      )}
+      {...props}
+    >
+      {isFetchingNextPage ? <Spinner /> : null}
+      {isFetchingNextPage ? (
         <span>Loading more…</span>
-      </div>
-    );
-  }
-
-  if (!infinite.hasNextPage && infinite.loadedCount > 0) {
-    return (
-      <div
-        className={cn(
-          "flex items-center justify-center p-2 text-muted-foreground text-sm",
-          className
-        )}
-        {...props}
-      >
-        <span>End of list</span>
-      </div>
-    );
-  }
-
-  return null;
+      ) : showCount ? (
+        <span>
+          Showing {loadedCount.toLocaleString()} of {totalItems.toLocaleString()}
+          {!hasNextPage && loadedCount > 0 ? " · End of list" : null}
+        </span>
+      ) : null}
+      {isFetchingNextPage && showCount ? (
+        <span className="text-muted-foreground/80">
+          · {loadedCount.toLocaleString()} of {totalItems.toLocaleString()}
+        </span>
+      ) : null}
+    </div>
+  );
 }

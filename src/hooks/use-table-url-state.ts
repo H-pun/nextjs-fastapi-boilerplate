@@ -30,6 +30,11 @@ function resolveQueryKeys(queryKeys?: Partial<QueryKeys>): QueryKeys {
  * Pass the same `queryKeys` partial you give `useDataTable` when renaming URL
  * params (e.g. two tables on one route). Inside a toolbar provider the context
  * keys are used automatically when no override is passed.
+ *
+ * Fetch state follows the live URL only. Remembered prefs are applied by
+ * writing the URL (sidebar click rewriter + `useTableMemory` restore), never
+ * by silently merging localStorage into the query key while the URL is bare —
+ * that left the toolbar empty and the list still filtered.
  */
 export function useTableUrlState(queryKeys?: Partial<QueryKeys>) {
   const searchParams = useSearchParams();
@@ -94,9 +99,12 @@ export function toInfiniteQueryParams(
   state: ReturnType<typeof useTableUrlState>,
   page: number
 ) {
-  return toQueryParams({
-    ...state,
-    page,
-    perPage: dataTableConfig.infiniteTableChunkSize,
-  });
+  return {
+    ...toQueryParams({
+      ...state,
+      page,
+      perPage: dataTableConfig.infiniteTableChunkSize,
+    }),
+    skipListMeta: true,
+  };
 }

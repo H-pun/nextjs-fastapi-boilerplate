@@ -2,17 +2,13 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 
+import {
+  flattenInfinitePages,
+  getInfiniteTableNextPageParam,
+} from "@/lib/data-table-infinite";
 import type { Pagination } from "@/lib/types/pagination";
 
-export function flattenInfinitePages<T>(
-  pages: Pagination<T>[] | undefined
-): T[] {
-  return pages?.flatMap((page) => page.items) ?? [];
-}
-
-export function getInfiniteTableNextPageParam<T>(lastPage: Pagination<T>) {
-  return lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined;
-}
+export { flattenInfinitePages, getInfiniteTableNextPageParam };
 
 interface UseInfiniteTableQueryOptions<T> {
   queryKey: unknown[];
@@ -31,6 +27,7 @@ export function useInfiniteTableQuery<T>({
     initialPageParam: 1,
     getNextPageParam: getInfiniteTableNextPageParam,
     enabled,
+    staleTime: 30_000,
     placeholderData: (previousData) => previousData,
   });
 

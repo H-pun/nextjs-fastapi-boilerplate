@@ -161,3 +161,44 @@ def test_page_past_the_end_is_rejected(session: Session):
 
     assert exc.value.status_code == 400
     assert exc.value.detail == "Page number exceeds total pages"
+
+
+def test_later_pages_skip_group_summaries_and_count(session: Session):
+    session.add(
+        Item(
+            id=4,
+            name="Alpha",
+            amount=Decimal("150.00"),
+            created_at=datetime(2026, 1, 4, tzinfo=timezone.utc),
+        )
+    )
+    session.commit()
+
+    page1 = paginate(
+        session,
+        FilterParams(page=1, page_size=2, group_by="name", skip_list_meta=True),
+    )
+    assert page1.groups is not None
+    assert page1.total_items == 4
+    assert len(page1.items) == 2
+
+    page2 = paginate(
+        session,
+        FilterParams(page=2, page_size=2, group_by="name", skip_list_meta=True),
+    )
+    assert page2.groups is None
+    assert page2.total_items == 0
+    assert page2.total_pages == 2
+    assert len(page2.items) == 2
+    assert page2.item_group_keys is not None
+    assert len(page2.item_group_keys) == 2
+
+
+def test_skip_list_meta_overshot_page_returns_empty(session: Session):
+    result = paginate(
+        session, FilterParams(page=3, page_size=2, skip_list_meta=True)
+    )
+    assert result.items == []
+    assert result.groups is None
+    assert result.total_items == 0
+    assert result.total_pages == 3

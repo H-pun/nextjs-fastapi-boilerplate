@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavMain } from "@/components/nav-main";
 import { NavSupport } from "@/components/nav-support";
 import { NavUser } from "@/components/nav-user";
+import { TableMemoryNavigation } from "@/components/table-memory-navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +35,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
+      <TableMemoryNavigation />
       <SidebarHeader className="border-sidebar-border h-14 justify-center border-b p-2">
         <SidebarMenu>
           <SidebarMenuItem>

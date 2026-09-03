@@ -29,6 +29,11 @@ export interface PaginationQuery {
   joinOperator?: "and" | "or";
   /** Column id for server-side row grouping. */
   groupBy?: string;
+  /**
+   * Infinite scroll: skip COUNT + group summaries on page > 1.
+   * Totals still come from the first page response.
+   */
+  skipListMeta?: boolean;
 }
 
 export const defaultPaginationQuery: PaginationQuery = {

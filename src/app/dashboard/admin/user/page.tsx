@@ -438,7 +438,16 @@ export default function Page() {
   return (
     <>
       <div className="mx-auto w-full min-w-0 max-w-7xl space-y-6">
-        <PageHeader title={TITLE} description={DESCRIPTION} />
+        <PageHeader
+          title={TITLE}
+          description={
+            isUsersLoading
+              ? DESCRIPTION
+              : `${DESCRIPTION} · ${totalItems.toLocaleString()} ${
+                  totalItems === 1 ? "user" : "users"
+                }`
+          }
+        />
 
         {isUsersLoading ? (
           <DataTableSkeleton columnCount={6} filterCount={2} />

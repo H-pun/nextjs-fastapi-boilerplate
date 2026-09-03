@@ -76,7 +76,7 @@ export function DataTableAdvancedToolbar<TData>({
     >
       <DataTableSortProvider table={table}>
         <div
-          className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+          className={cn("flex w-full min-w-0 flex-col gap-1.5", className)}
           {...props}
         >
           <div
@@ -128,7 +128,7 @@ export function DataTableAdvancedToolbar<TData>({
               shallow={shallow}
               debounceMs={debounceMs}
               throttleMs={throttleMs}
-              className="w-full px-1"
+              className="w-full"
               filterMenuExtras={filterMenuExtras}
               openFilterId={openFilterId}
               onOpenFilterIdChange={setOpenFilterId}

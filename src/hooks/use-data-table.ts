@@ -187,19 +187,14 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>(
     initialState?.rowSelection ?? {}
   );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>(initialState?.columnVisibility ?? {});
 
   // Read once: pages build `initialState` inline, so re-reading it every render
   // would hand the table a new default object each time.
   const [layoutDefaults] = React.useState<TableLayout>(() => ({
     columnOrder: initialState?.columnOrder ?? [],
     columnPinning: initialState?.columnPinning ?? {},
+    columnVisibility: initialState?.columnVisibility ?? {},
   }));
-
-  const [visibilityDefaults] = React.useState<VisibilityState>(
-    () => initialState?.columnVisibility ?? {}
-  );
 
   const {
     layout,
@@ -228,8 +223,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   // Everything about how the columns are arranged, visibility included.
   const resetLayout = React.useCallback(() => {
     resetStoredLayout();
-    setColumnVisibility(visibilityDefaults);
-  }, [resetStoredLayout, visibilityDefaults]);
+  }, [resetStoredLayout]);
 
   const onColumnOrderChange = React.useCallback(
     (updaterOrValue: Updater<ColumnOrderState>) => {
@@ -238,6 +232,19 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
         columnOrder:
           typeof updaterOrValue === "function"
             ? updaterOrValue(layout.columnOrder)
+            : updaterOrValue,
+      });
+    },
+    [layout, setLayout]
+  );
+
+  const onColumnVisibilityChange = React.useCallback(
+    (updaterOrValue: Updater<VisibilityState>) => {
+      setLayout({
+        ...layout,
+        columnVisibility:
+          typeof updaterOrValue === "function"
+            ? updaterOrValue(layout.columnVisibility)
             : updaterOrValue,
       });
     },
@@ -449,7 +456,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     state: {
       pagination,
       sorting,
-      columnVisibility,
+      columnVisibility: layout.columnVisibility,
       columnOrder: layout.columnOrder,
       columnPinning,
       rowSelection,
@@ -466,7 +473,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     onPaginationChange,
     onSortingChange,
     onColumnFiltersChange,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange,
     onColumnOrderChange,
     onColumnPinningChange,
     getCoreRowModel: getCoreRowModel(),

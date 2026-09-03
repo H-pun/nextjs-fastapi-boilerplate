@@ -1,6 +1,10 @@
 "use client";
 
-import type { ColumnOrderState, ColumnPinningState } from "@tanstack/react-table";
+import type {
+  ColumnOrderState,
+  ColumnPinningState,
+  VisibilityState,
+} from "@tanstack/react-table";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
@@ -9,6 +13,14 @@ const STORAGE_PREFIX = "app:table-layout:";
 export interface TableLayout {
   columnOrder: ColumnOrderState;
   columnPinning: ColumnPinningState;
+  columnVisibility: VisibilityState;
+}
+
+/** Partial layout as read from storage — visibility may be absent on older keys. */
+interface StoredLayout {
+  columnOrder: ColumnOrderState;
+  columnPinning: ColumnPinningState;
+  columnVisibility?: VisibilityState;
 }
 
 /**
@@ -21,21 +33,28 @@ function subscribe() {
 
 const cache = new Map<
   string,
-  { raw: string | null; layout: TableLayout | null }
+  { raw: string | null; layout: StoredLayout | null }
 >();
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((id) => typeof id === "string");
 }
 
-function readLayout(storageKey: string): TableLayout | null {
+function isVisibilityState(value: unknown): value is VisibilityState {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  return Object.values(value).every((v) => typeof v === "boolean");
+}
+
+function readLayout(storageKey: string): StoredLayout | null {
   const raw = localStorage.getItem(storageKey);
   const cached = cache.get(storageKey);
   // useSyncExternalStore compares snapshots by identity — a fresh object on
   // every call would re-render forever.
   if (cached && cached.raw === raw) return cached.layout;
 
-  let layout: TableLayout | null = null;
+  let layout: StoredLayout | null = null;
 
   if (raw) {
     try {
@@ -52,6 +71,9 @@ function readLayout(storageKey: string): TableLayout | null {
               : [],
           },
         };
+        if (isVisibilityState(parsed?.columnVisibility)) {
+          layout.columnVisibility = parsed.columnVisibility;
+        }
       }
     } catch {
       layout = null;
@@ -62,8 +84,22 @@ function readLayout(storageKey: string): TableLayout | null {
   return layout;
 }
 
+function resolveLayout(
+  stored: StoredLayout | null,
+  defaults: TableLayout
+): TableLayout {
+  if (!stored) return defaults;
+  return {
+    columnOrder: stored.columnOrder,
+    columnPinning: stored.columnPinning,
+    // Older keys omit visibility — fall back to page defaults so initial
+    // hidden columns (e.g. id) stay hidden until the user changes them.
+    columnVisibility: stored.columnVisibility ?? defaults.columnVisibility,
+  };
+}
+
 /**
- * Column order and pinning, remembered per table across reloads.
+ * Column order, pinning, and visibility, remembered per table across reloads.
  *
  * The stored ids are never reconciled against the current columns: TanStack
  * skips ids it does not know and appends columns the stored order never
@@ -84,7 +120,10 @@ export function useTableLayout(defaults: TableLayout, persistKey?: string) {
   );
   const [override, setOverride] = React.useState<TableLayout | null>(null);
 
-  const layout = override ?? stored ?? defaults;
+  const layout = React.useMemo(
+    () => override ?? resolveLayout(stored, defaults),
+    [override, stored, defaults]
+  );
 
   const setLayout = React.useCallback(
     (next: TableLayout) => {

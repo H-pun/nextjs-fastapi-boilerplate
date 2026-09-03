@@ -5,10 +5,71 @@ import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
 import * as React from "react";
 
 import { DEFAULT_QUERY_KEYS } from "@/components/data-table/data-table-query-keys";
+import { useCallbackRef } from "@/hooks/use-callback-ref";
 import { getFiltersStateParser, getSortingStateParser } from "@/lib/parsers";
 import type { QueryKeys } from "@/types/data-table";
 
 const STORAGE_PREFIX = "app:table-state:";
+
+/** Bounded so a table that genuinely cannot hold the stored keys settles. */
+const RESTORE_ATTEMPTS = 5;
+const RESTORE_RETRY_MS = 150;
+
+type ClearListener = () => void;
+const clearListeners = new Map<string, Set<ClearListener>>();
+
+export function getTableMemoryStorageKey(persistKey: string) {
+  return `${STORAGE_PREFIX}${persistKey}`;
+}
+
+/**
+ * Sidebar and shortcut links point at a bare path. If this path last held
+ * table prefs, attach them so the next navigation lands on the filtered URL
+ * in one step — restoring after mount flashes the unfiltered page first.
+ */
+export function rememberTableHref(href: string): string {
+  if (typeof window === "undefined") return href;
+  if (!href || href === "#") return href;
+
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.origin !== window.location.origin) return href;
+    // Only rewrite bare paths. A link that already carries query (shared
+    // `?roleId=…`, etc.) must keep the sender's params, not our prefs.
+    if (url.search) return href;
+
+    const stored = localStorage.getItem(getTableMemoryStorageKey(url.pathname));
+    if (!stored) return href;
+
+    url.search = stored.startsWith("?") ? stored : `?${stored}`;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
+/**
+ * Drop remembered query prefs for a table. Call from Reset — never from a bare
+ * empty URL, which also happens mid-navigation before the page unmounts.
+ */
+export function clearTableMemory(persistKey: string) {
+  const storageKey = getTableMemoryStorageKey(persistKey);
+  localStorage.removeItem(storageKey);
+  clearListeners.get(storageKey)?.forEach((listener) => listener());
+}
+
+function subscribeTableMemoryClear(storageKey: string, listener: ClearListener) {
+  let set = clearListeners.get(storageKey);
+  if (!set) {
+    set = new Set();
+    clearListeners.set(storageKey, set);
+  }
+  set.add(listener);
+  return () => {
+    set!.delete(listener);
+    if (set!.size === 0) clearListeners.delete(storageKey);
+  };
+}
 
 /**
  * The parts of the URL that describe how someone is looking at a table.
@@ -46,6 +107,9 @@ function read(params: URLSearchParams, keys: string[]) {
  *
  * The URL still wins whenever it says anything at all, so a link someone shared
  * opens the way they left it rather than the way the recipient last sat.
+ *
+ * Empty URL is ambiguous (Reset vs in-flight navigation), so memory is only
+ * cleared via {@link clearTableMemory} — not by observing an empty query.
  */
 export function useTableMemory(
   persistKey?: string,
@@ -57,7 +121,12 @@ export function useTableMemory(
 ) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const storageKey = `${STORAGE_PREFIX}${persistKey ?? pathname}`;
+
+  // Freeze the storage identity on mount. During client navigations the URL
+  // (and often `usePathname`) updates before this page unmounts — if we
+  // re-derived the key from the live pathname we would write the wrong slot.
+  const [scopedKey] = React.useState(() => persistKey ?? pathname);
+  const storageKey = getTableMemoryStorageKey(scopedKey);
 
   const keys = React.useMemo(
     () => [...rememberedKeys(queryKeys), ...extraKeys],
@@ -97,36 +166,60 @@ export function useTableMemory(
     scroll: false,
   });
 
+  // nuqs hands back a fresh setter every render, which would re-run the restore
+  // effect and cancel its retry timer before the write ever lands.
+  const applyQuery = useCallbackRef(setQuery);
+
   const serialised = read(new URLSearchParams(searchParams.toString()), keys);
+
+  // Last non-empty snapshot — flushed on unmount so a navigation that clears
+  // the query string before this page dies cannot drop remembered filters.
+  const lastSavedRef = React.useRef("");
 
   // idle → nothing decided yet; restoring → waiting for the write to land;
   // live → the URL is the truth and worth remembering.
   const phase = React.useRef<"idle" | "restoring" | "live">("idle");
+  const pendingRestoreRef = React.useRef<Parameters<
+    typeof setQuery
+  >[0] | null>(null);
+  const restoreAttemptsRef = React.useRef(0);
+  const restoreTimerRef = React.useRef(0);
+
+  React.useEffect(
+    () =>
+      subscribeTableMemoryClear(storageKey, () => {
+        lastSavedRef.current = "";
+      }),
+    [storageKey]
+  );
 
   React.useEffect(() => {
-    if (phase.current !== "idle") return;
+    if (phase.current === "live") return;
 
     if (serialised) {
       phase.current = "live";
+      // Landed — drop the payload so a later Reset is not undone by a retry.
+      pendingRestoreRef.current = null;
       return;
     }
 
-    const stored = localStorage.getItem(storageKey);
-    // Read back through the whitelist rather than replayed as-is: the stored
-    // string is caller-writable, and this also drops keys left by an older
-    // version of this list.
-    const restored = stored
-      ? new URLSearchParams(read(new URLSearchParams(stored), keys))
-      : null;
+    if (phase.current === "idle") {
+      const stored = localStorage.getItem(storageKey);
+      // Read back through the whitelist rather than replayed as-is: the stored
+      // string is caller-writable, and this also drops keys left by an older
+      // version of this list.
+      const restored = stored
+        ? new URLSearchParams(read(new URLSearchParams(stored), keys))
+        : null;
 
-    if (!restored || ![...restored.keys()].length) {
-      phase.current = "live";
-      return;
-    }
+      if (!restored || ![...restored.keys()].length) {
+        phase.current = "live";
+        return;
+      }
 
-    phase.current = "restoring";
-    void setQuery(
-      Object.fromEntries(
+      phase.current = "restoring";
+      restoreAttemptsRef.current = 0;
+      pendingRestoreRef.current = Object.fromEntries(
         keys.map((key) => {
           const raw = restored.get(key);
           // `parse` answers null for anything it does not recognise, which
@@ -136,9 +229,40 @@ export function useTableMemory(
             raw === null ? null : (parsers[key]?.parse(raw) ?? null),
           ];
         })
-      )
-    );
-  }, [serialised, setQuery, storageKey, keys, parsers]);
+      );
+    }
+
+    const payload = pendingRestoreRef.current;
+    if (!payload) return;
+
+    // Arriving by a sidebar link, the first write races the navigation that
+    // brought us here and loses: the router commits the bare path after nuqs
+    // replaced it, leaving the table unfiltered with its prefs still in
+    // storage. Re-issue until the params are actually in the URL.
+    let cancelled = false;
+
+    const write = () => {
+      if (cancelled) return;
+      if (read(new URLSearchParams(window.location.search), keys)) {
+        pendingRestoreRef.current = null;
+        return;
+      }
+
+      restoreAttemptsRef.current += 1;
+      void applyQuery(payload);
+
+      if (restoreAttemptsRef.current < RESTORE_ATTEMPTS) {
+        restoreTimerRef.current = window.setTimeout(write, RESTORE_RETRY_MS);
+      }
+    };
+
+    write();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(restoreTimerRef.current);
+    };
+  }, [serialised, storageKey, keys, parsers, applyQuery]);
 
   React.useEffect(() => {
     if (phase.current === "restoring") {
@@ -147,9 +271,19 @@ export function useTableMemory(
     }
     if (phase.current !== "live") return;
 
-    // An empty URL now means the user cleared everything, which is itself worth
-    // remembering — the next visit should start clean rather than undo them.
-    if (serialised) localStorage.setItem(storageKey, serialised);
-    else localStorage.removeItem(storageKey);
+    // Only persist non-empty snapshots. An empty URL during leave-page must
+    // not wipe memory — Reset calls clearTableMemory explicitly instead.
+    if (!serialised) return;
+
+    lastSavedRef.current = serialised;
+    localStorage.setItem(storageKey, serialised);
   }, [serialised, storageKey]);
+
+  React.useEffect(() => {
+    return () => {
+      if (lastSavedRef.current) {
+        localStorage.setItem(storageKey, lastSavedRef.current);
+      }
+    };
+  }, [storageKey]);
 }

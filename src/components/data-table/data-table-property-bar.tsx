@@ -101,7 +101,7 @@ export function DataTablePropertyBar<TData>({
   return (
     <div
       className={cn(
-        "flex w-full flex-wrap items-center gap-1.5 overflow-x-auto pb-1",
+        "flex w-full flex-wrap items-center gap-1.5 overflow-x-auto",
         className
       )}
     >

@@ -35,7 +35,6 @@ export const getColumns = (
       </Copyable>
     ),
     enableColumnFilter: true,
-    enableHiding: false,
     meta: {
       label: "Identifier",
       placeholder: "Search identifier...",
@@ -56,7 +55,6 @@ export const getColumns = (
       </Copyable>
     ),
     enableColumnFilter: true,
-    enableHiding: false,
     meta: {
       label: "Name",
       placeholder: "Search name...",

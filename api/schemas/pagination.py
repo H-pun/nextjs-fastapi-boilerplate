@@ -53,6 +53,9 @@ class FilterParams(BaseModel):
     group_by: str | None = Field(
         None, description="Column id to group rows by (server-side, whitelisted)"
     )
+    # Infinite scroll only needs totals/groups on page 1; later chunks set this
+    # so paginate_select can skip the COUNT and group-summary queries.
+    skip_list_meta: bool = False
 
 
 class GroupSummary(BaseModel):
