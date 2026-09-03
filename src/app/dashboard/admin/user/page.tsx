@@ -278,8 +278,8 @@ export default function Page() {
                       ...user,
                       name: form.name ?? user.name,
                       identifier: form.identifier ?? user.identifier,
-                      username: form.username ?? user.username,
-                      email: form.email || undefined,
+                      username: form.username || user.username,
+                      email: form.email || user.email,
                       roles: nextRoles.length > 0 ? nextRoles : user.roles,
                     }
                   : user
