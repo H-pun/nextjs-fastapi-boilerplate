@@ -760,8 +760,10 @@ export function DataTable<TData>({
                           colSpan={header.colSpan}
                           data-pinned-column={header.column.id}
                           className={cn(
+                            // Opaque cover for horizontal scroll only — do not
+                            // reuse body `pinnedCellClass` hover/selection mixes;
+                            // those tint the header while siblings stay plain.
                             stickyHeadClass,
-                            pinnedCellClass,
                             "sticky border-b"
                           )}
                           style={{
