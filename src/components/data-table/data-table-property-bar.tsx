@@ -69,9 +69,13 @@ export function DataTablePropertyBar<TData>({
     prevFilterCountRef.current = filters.length;
   }, [filters.length, setAdvancedFilterMode]);
 
-  // Seed one empty rule when entering advanced mode with nothing set.
+  // Seed only when *entering* advanced mode with an empty list — not when the
+  // user clears rules while advancedFilterMode is still briefly true.
+  const wasAdvancedRef = React.useRef(false);
   React.useEffect(() => {
-    if (!advancedFilterMode || filters.length > 0 || !columns[0]) return;
+    const entered = advancedFilterMode && !wasAdvancedRef.current;
+    wasAdvancedRef.current = advancedFilterMode;
+    if (!entered || filters.length > 0 || !columns[0]) return;
     addColumnFilter(columns[0]);
   }, [addColumnFilter, advancedFilterMode, columns, filters.length]);
 

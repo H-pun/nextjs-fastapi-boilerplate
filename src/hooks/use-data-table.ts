@@ -486,6 +486,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       groupBy: groupBy ?? null,
       setGroupBy,
       paginationMode,
+      memoryKeys: stableMemoryKeys,
     },
   });
 

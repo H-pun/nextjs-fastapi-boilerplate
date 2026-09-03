@@ -9,9 +9,9 @@ import { useDataTableQueryKeys } from "@/components/data-table/data-table-query-
 import { Button } from "@/components/ui/button";
 
 /**
- * Clears the narrowing the user applied — search, sort, filters — and nothing
- * else. The view toggle and page size are how they prefer to read the table,
- * not a question they asked of it, so both survive.
+ * Clears the narrowing the user applied — search, sort, filters, and any
+ * page-specific keys registered as `memoryKeys` / `resetExtraKeys`. View and
+ * page size survive (how they prefer to read the table).
  *
  * Absent until there is something to clear: a permanently visible Reset reads
  * as if the table were filtered when it is not.
@@ -20,7 +20,7 @@ export function DataTableResetFilters() {
   const searchParams = useSearchParams();
   // The toolbar names these after its own table, so a page with two tables
   // clears the one the button belongs to rather than both.
-  const { keys, paginationMode } = useDataTableQueryKeys();
+  const { keys, paginationMode, resetExtraKeys } = useDataTableQueryKeys();
 
   // `page` rides along because the row it pointed at is gone once the narrowing
   // is, but it is not itself a reason to offer the button.
@@ -30,13 +30,14 @@ export function DataTableResetFilters() {
       keys.sort,
       keys.filters,
       keys.joinOperator,
+      ...resetExtraKeys,
       ...(paginationMode === "infinite" ? [] : [keys.page]),
     ],
-    [keys, paginationMode]
+    [keys, paginationMode, resetExtraKeys]
   );
   const counted = useMemo(
-    () => [keys.search, keys.sort, keys.filters],
-    [keys]
+    () => [keys.search, keys.sort, keys.filters, ...resetExtraKeys],
+    [keys, resetExtraKeys]
   );
 
   const parsers = useMemo(

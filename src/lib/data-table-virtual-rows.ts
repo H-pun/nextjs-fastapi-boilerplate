@@ -69,7 +69,9 @@ export function buildVirtualTableRows<TData>({
 
     for (const summary of groupSummaries) {
       const rows = rowsByGroup.get(summary.id) ?? [];
-      if (summary.count <= 0 && rows.length === 0) continue;
+      // Infinite scroll loads buckets gradually — skip headers with no rows
+      // yet so empty group sections do not appear ahead of loaded data.
+      if (rows.length === 0) continue;
 
       renderedKeys.add(summary.id);
       pushGroupHeader(summary.id, summary.label, summary.count);

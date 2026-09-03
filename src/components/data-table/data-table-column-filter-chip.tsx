@@ -88,8 +88,9 @@ export function DataTableColumnFilterChip<TData>({
         align="start"
         className="w-auto p-0"
         onOpenAutoFocus={(event) => {
+          const root = event.currentTarget as HTMLElement | null;
           const valueControl =
-            event.currentTarget.querySelector<HTMLElement>("[data-filter-value]");
+            root?.querySelector<HTMLElement>("[data-filter-value]");
           if (!valueControl) return;
           event.preventDefault();
           requestAnimationFrame(() => valueControl.focus());

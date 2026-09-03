@@ -72,6 +72,7 @@ export function DataTableAdvancedToolbar<TData>({
     <DataTableQueryKeysProvider
       keys={table.options.meta?.queryKeys}
       paginationMode={table.options.meta?.paginationMode}
+      resetExtraKeys={table.options.meta?.memoryKeys}
     >
       <DataTableSortProvider table={table}>
         <div

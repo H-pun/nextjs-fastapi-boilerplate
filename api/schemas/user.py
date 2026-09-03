@@ -55,6 +55,8 @@ class UpdateUserRequest(BaseModel):
     name: str | None = Field("", max_length=50, examples=['John Doe'])
     email: EmailStr | Literal[""] = Field("", examples=['johndoe@example.com'])
     username: str | None = Field("", max_length=25, pattern=USERNAME_PATTERN, examples=['johndoe'])
+    # Optional — only applied when the caller has `user:manage` (see service).
+    role_ids: list[UUID] | None = None
 
 class CreateUserRequest(BaseModel):
     identifier: str | None = Field(None, max_length=50, examples=['EMP-0001'])

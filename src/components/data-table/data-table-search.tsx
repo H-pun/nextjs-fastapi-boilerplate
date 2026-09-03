@@ -23,7 +23,8 @@ import {
 export function DataTableSearch({
   placeholder = "Search...",
   label = "Search",
-  shallow = true,
+  /** Match canonical table fetch (`useSearchParams`) — prefer false. */
+  shallow = false,
 }: {
   placeholder?: string;
   label?: string;

@@ -465,8 +465,8 @@ router.push("/dashboard/admin/feature/create");
 
 ### Data tables
 
-Use `src/components/data-table/` with `useDataTable` — not the legacy
-`src/components/ui/data-table.tsx`. Table state lives in the URL through nuqs.
+Use `src/components/data-table/` with `useDataTable`. Table state lives in the
+URL through nuqs.
 A page should have one owner for each query key: controls write the URL, while
 data fetching reads that resulting URL state.
 

@@ -4,11 +4,20 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 
+import {
+  DEFAULT_QUERY_KEYS,
+  useDataTableQueryKeys,
+} from "@/components/data-table/data-table-query-keys";
 import { dataTableConfig } from "@/config/data-table";
+import type { QueryKeys } from "@/types/data-table";
 
 export const TABLE_VIEWS = ["table", "list"] as const;
 
 export type TableView = (typeof TABLE_VIEWS)[number];
+
+function resolveQueryKeys(queryKeys?: Partial<QueryKeys>): QueryKeys {
+  return { ...DEFAULT_QUERY_KEYS, ...queryKeys };
+}
 
 /**
  * The table state a page has to send to its endpoint.
@@ -17,27 +26,33 @@ export type TableView = (typeof TABLE_VIEWS)[number];
  * through Next rather than mounting its own `useQueryStates` — one nuqs owner
  * per key, or the second instance sits on a stale snapshot and the query never
  * sees the change.
+ *
+ * Pass the same `queryKeys` partial you give `useDataTable` when renaming URL
+ * params (e.g. two tables on one route). Inside a toolbar provider the context
+ * keys are used automatically when no override is passed.
  */
-export function useTableUrlState() {
+export function useTableUrlState(queryKeys?: Partial<QueryKeys>) {
   const searchParams = useSearchParams();
+  const { keys: contextKeys } = useDataTableQueryKeys();
+  const keys = queryKeys ? resolveQueryKeys(queryKeys) : contextKeys;
 
   return useMemo(() => {
-    const page = Number(searchParams.get("page"));
-    const perPage = Number(searchParams.get("perPage"));
-    const joinOperator = searchParams.get("joinOperator");
+    const page = Number(searchParams.get(keys.page));
+    const perPage = Number(searchParams.get(keys.perPage));
+    const joinOperator = searchParams.get(keys.joinOperator);
     const normalizedJoinOperator: "and" | "or" =
       joinOperator === "or" ? "or" : "and";
 
     return {
       page: Number.isInteger(page) && page > 0 ? page : 1,
       perPage: Number.isInteger(perPage) && perPage > 0 ? perPage : 10,
-      search: searchParams.get("search") ?? "",
-      sort: searchParams.get("sort") ?? "",
-      filters: searchParams.get("filters") ?? "",
+      search: searchParams.get(keys.search) ?? "",
+      sort: searchParams.get(keys.sort) ?? "",
+      filters: searchParams.get(keys.filters) ?? "",
       joinOperator: normalizedJoinOperator,
-      groupBy: searchParams.get("groupBy") ?? "",
+      groupBy: searchParams.get(keys.groupBy) ?? "",
     };
-  }, [searchParams]);
+  }, [keys, searchParams]);
 }
 
 /**
@@ -45,9 +60,12 @@ export function useTableUrlState() {
  * of the table state, so a shared link opens the way the sender left it, and it
  * changes nothing about the query.
  */
-export function useTableView() {
+export function useTableView(queryKeys?: Partial<QueryKeys>) {
+  const { keys: contextKeys } = useDataTableQueryKeys();
+  const keys = queryKeys ? resolveQueryKeys(queryKeys) : contextKeys;
+
   return useQueryState(
-    "view",
+    keys.view,
     parseAsStringLiteral(TABLE_VIEWS).withDefault("table")
   );
 }

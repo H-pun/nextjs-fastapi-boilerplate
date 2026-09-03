@@ -54,7 +54,12 @@ async def update(db: SessionDep, data: UpdateUserRequest, id_user: UUID, user: C
     # Anyone may edit their own profile; editing someone else needs the scope.
     if user.id != id_user and "user:manage" not in user.scope_keys:
         raise HTTPException(status_code=403, detail="Forbidden: missing scope user:manage")
-    await UserService.update_user(db, data=data, id_user=id_user)
+    await UserService.update_user(
+        db,
+        data=data,
+        id_user=id_user,
+        allow_role_change="user:manage" in user.scope_keys,
+    )
     return {"message": "success"}
 
 @router.patch("/{id_user}/role")

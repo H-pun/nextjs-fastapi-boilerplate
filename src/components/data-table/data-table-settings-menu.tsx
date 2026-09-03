@@ -71,8 +71,7 @@ export function DataTableSettingsMenu<TData>({
       .getAllLeafColumns()
       .filter((column) => {
         if (!column.columnDef.meta?.enableGrouping) return false;
-        const { accessorKey, accessorFn } = column.columnDef;
-        return accessorKey != null || accessorFn != null;
+        return column.accessorFn != null;
       })
       .map((column) => ({
         id: column.id,

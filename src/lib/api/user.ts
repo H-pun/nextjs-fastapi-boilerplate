@@ -42,6 +42,7 @@ export const updateUser = async (data: UserForm) => {
     name: data.name,
     username: data.username,
     email: data.email ?? "",
+    roleIds: data.roleIds,
   });
   return response.data;
 };

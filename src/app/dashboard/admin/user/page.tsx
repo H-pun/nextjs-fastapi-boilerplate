@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shield } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { useDataTable } from "@/hooks/use-data-table";
 import { useInfiniteTableQuery } from "@/hooks/use-infinite-table-query";
 import { toInfiniteQueryParams, useTableUrlState } from "@/hooks/use-table-url-state";
@@ -15,7 +15,6 @@ import { RoleFilter } from "./_components/role-filter";
 import { UserRowContextMenu } from "./_components/user-row-actions";
 import { getColumns } from "./columns";
 import {
-  changeRole,
   createUser,
   deleteUser,
   getUsers,
@@ -109,7 +108,6 @@ export default function Page() {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openResetPasswordDialog, setOpenResetPasswordDialog] = useState(false);
   const [selectedData, setSelectedData] = useState<UserData | null>(null);
-  const [originalRoleIds, setOriginalRoleIds] = useState<string[]>([]);
   const [roleChipAdded, setRoleChipAdded] = useState(() =>
     searchParams.has("roleId")
   );
@@ -143,7 +141,6 @@ export default function Page() {
     () => ({
       onEdit: (data: UserData) => {
         const roleIds = data.roles.map((role) => role.id);
-        setOriginalRoleIds(roleIds);
         reset({
           id: data.id,
           identifier: data.identifier,
@@ -266,25 +263,28 @@ export default function Page() {
         .map((roleId) => roles.find((role) => role.id === roleId))
         .filter((role): role is NonNullable<typeof role> => Boolean(role));
 
-      queryClient.setQueriesData<Pagination<UserData>>(
+      queryClient.setQueriesData<InfiniteData<Pagination<UserData>>>(
         { queryKey: ["users"] },
         (current) => {
-          if (!current?.items) return current;
+          if (!current?.pages) return current;
 
           return {
             ...current,
-            items: current.items.map((user) =>
-              user.id === form.id
-                ? {
-                    ...user,
-                    name: form.name ?? user.name,
-                    identifier: form.identifier ?? user.identifier,
-                    username: form.username ?? user.username,
-                    email: form.email || undefined,
-                    roles: nextRoles.length > 0 ? nextRoles : user.roles,
-                  }
-                : user
-            ),
+            pages: current.pages.map((page) => ({
+              ...page,
+              items: page.items.map((user) =>
+                user.id === form.id
+                  ? {
+                      ...user,
+                      name: form.name ?? user.name,
+                      identifier: form.identifier ?? user.identifier,
+                      username: form.username ?? user.username,
+                      email: form.email || undefined,
+                      roles: nextRoles.length > 0 ? nextRoles : user.roles,
+                    }
+                  : user
+              ),
+            })),
           };
         }
       );
@@ -345,13 +345,9 @@ export default function Page() {
   const onSubmit = async (data: UserForm) => {
     if (data.id) {
       try {
+        // Profile + roles in one request so a mid-flight failure cannot leave
+        // account fields updated while roles stay stale.
         await updateAsync(data);
-        const rolesChanged =
-          data.roleIds.length !== originalRoleIds.length ||
-          data.roleIds.some((id) => !originalRoleIds.includes(id));
-        if (rolesChanged) {
-          await changeRole(data.id, { roleIds: data.roleIds });
-        }
         patchUserInListCache(data);
         await refetch();
         toast.success("User updated successfully");
@@ -423,7 +419,6 @@ export default function Page() {
       trailing={
         <Button
           onClick={() => {
-            setOriginalRoleIds([]);
             setOpenSheet(true);
             reset(defaultValues);
           }}
@@ -593,11 +588,7 @@ export default function Page() {
             </div>
           </ScrollArea>
           <SheetFooter>
-            <Button
-              type="button"
-              disabled={isLoading}
-              onClick={handleSubmit(onSubmit, onInvalid)}
-            >
+            <Button type="submit" form="user-form" disabled={isLoading}>
               {(isUpdating || isCreating) && <Spinner />}
               {state === "Add" ? "Create user" : "Save changes"}
             </Button>

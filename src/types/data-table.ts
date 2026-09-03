@@ -1,4 +1,4 @@
-import type { ColumnSort, Row, RowData } from "@tanstack/react-table";
+import type { ColumnSort, RowData } from "@tanstack/react-table";
 import type { DataTableConfig } from "@/config/data-table";
 import type { FilterItemSchema } from "@/lib/parsers";
 
@@ -16,6 +16,8 @@ declare module "@tanstack/react-table" {
     setGroupBy?: (columnId: string | null) => void;
     /** How rows are loaded — page buttons or infinite scroll. */
     paginationMode?: TablePaginationMode;
+    /** Extra URL keys Reset should clear (page-specific filters). */
+    memoryKeys?: string[];
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -69,9 +71,4 @@ export interface ExtendedColumnSort<TData> extends Omit<ColumnSort, "id"> {
 
 export interface ExtendedColumnFilter<TData> extends FilterItemSchema {
   id: Extract<keyof TData, string>;
-}
-
-export interface DataTableRowAction<TData> {
-  row: Row<TData>;
-  variant: "update" | "delete";
 }

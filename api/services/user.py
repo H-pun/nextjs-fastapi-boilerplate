@@ -190,10 +190,36 @@ async def authenticate_oidc(db: Session, *, provider: str, data: OidcLoginReques
     return response
 
 
-async def update_user(db: Session, *, data: UpdateUserRequest, id_user: UUID):
-    update_data = data.model_dump(exclude_defaults=True, exclude_unset=True)
+async def update_user(
+    db: Session,
+    *,
+    data: UpdateUserRequest,
+    id_user: UUID,
+    allow_role_change: bool = False,
+):
+    update_data = data.model_dump(
+        exclude_defaults=True,
+        exclude_unset=True,
+        exclude={"role_ids"},
+    )
     if update_data:
         db.execute(update(User).where(User.id == id_user).values(**update_data))
+
+    if "role_ids" in data.model_fields_set:
+        if not allow_role_change:
+            raise HTTPException(
+                status_code=403, detail="Forbidden: missing scope user:manage"
+            )
+        if data.role_ids is None or len(data.role_ids) < 1:
+            raise HTTPException(status_code=400, detail="Pick at least one role")
+
+        user = db.get(User, id_user)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.roles = _resolve_roles(db, data.role_ids)
+        guard_last_admin(db)
+
     db.commit()
 
 

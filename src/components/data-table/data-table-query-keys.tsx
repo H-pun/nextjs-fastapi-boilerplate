@@ -19,11 +19,14 @@ export const DEFAULT_QUERY_KEYS: QueryKeys = {
 interface DataTableQueryKeysContextValue {
   keys: QueryKeys;
   paginationMode: TablePaginationMode;
+  /** Extra URL keys cleared by Reset (e.g. page-specific `memoryKeys`). */
+  resetExtraKeys: string[];
 }
 
 const QueryKeysContext = React.createContext<DataTableQueryKeysContextValue>({
   keys: DEFAULT_QUERY_KEYS,
   paginationMode: "pages",
+  resetExtraKeys: [],
 });
 
 /**
@@ -37,18 +40,21 @@ const QueryKeysContext = React.createContext<DataTableQueryKeysContextValue>({
 export function DataTableQueryKeysProvider({
   keys,
   paginationMode = "pages",
+  resetExtraKeys = [],
   children,
 }: {
   keys?: QueryKeys;
   paginationMode?: TablePaginationMode;
+  resetExtraKeys?: string[];
   children: React.ReactNode;
 }) {
   const value = React.useMemo(
     () => ({
       keys: keys ?? DEFAULT_QUERY_KEYS,
       paginationMode,
+      resetExtraKeys,
     }),
-    [keys, paginationMode]
+    [keys, paginationMode, resetExtraKeys]
   );
 
   return (
