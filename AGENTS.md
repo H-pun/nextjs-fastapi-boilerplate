@@ -465,10 +465,28 @@ router.push("/dashboard/admin/feature/create");
 
 ### Data tables
 
-Use `src/components/data-table/` with `useDataTable`. Table state lives in the
-URL through nuqs.
-A page should have one owner for each query key: controls write the URL, while
-data fetching reads that resulting URL state.
+Use `src/components/data-table/` with `useDataTable`. Live table state
+(search, sort, filters, group) lives in the URL through nuqs. A page should
+have one owner for each query key: controls write the URL, while data fetching
+reads that resulting URL state via `useTableUrlState()` — never merge
+localStorage into the fetch params while the URL is bare.
+
+**Persistence across navigation** — sidebar links are bare paths, so leaving
+and returning would drop the query string. Two helpers keep prefs without
+fighting the URL:
+
+- `useTableMemory` (mounted from `useDataTable`) writes search/sort/filters/
+  groupBy (and optional `memoryKeys`) to localStorage, then restores them
+  through nuqs when the page remounts on an empty query.
+- `TableMemoryNavigation` (in `AppSidebar`) rewrites clicks to a bare table
+  path so the remembered query is already on the destination URL — avoids a
+  flash of the unfiltered list.
+
+Column layout (order, pinning, visibility) is separate: `useTableLayout`
+persists it in localStorage. Reset clears URL narrowing **and** must call
+`clearTableMemory` — an empty URL alone must not wipe memory (leave-page
+races look the same). Pass page-specific extras (e.g. `roleId`) as
+`memoryKeys` on `useDataTable` so they restore and clear with the table.
 
 **Fetching pattern (infinite scroll)** — default for table pages. `useDataTable`
 owns nuqs writes; the page reads URL state with `useTableUrlState()` and loads
@@ -476,6 +494,11 @@ data through `useInfiniteTableQuery`. Chunk size is fixed at
 `dataTableConfig.infiniteTableChunkSize` (50) — not shown in the UI. Server-side
 **group by** works in infinite mode via Settings → Group. Do not mount a second
 nuqs owner for the same keys.
+
+`toInfiniteQueryParams` always sets `skipListMeta: true`. The API skips
+`COUNT(*)` and group summaries when `page > 1`; totals and groups come from
+the first page only. Next-page detection stops when a chunk is shorter than
+`pageSize` (see `getInfiniteTableNextPageParam`).
 
 ```tsx
 import { useInfiniteTableQuery } from "@/hooks/use-infinite-table-query";
@@ -507,6 +530,8 @@ const { table } = useDataTable({
   rowCount: totalItems,
   paginationMode: "infinite",
   enableAdvancedFilter: true,
+  // Optional page-specific URL keys to remember with the table:
+  // memoryKeys: ["roleId"],
 });
 
 <DataTable
@@ -522,8 +547,8 @@ const { table } = useDataTable({
 />
 ```
 
-The infinite footer only shows a spinner while the next chunk loads — no page
-buttons or load-size selector.
+The infinite footer shows loaded/total counts while scrolling (and a spinner
+while the next chunk loads) — no page buttons or load-size selector.
 
 **Page-button pagination** — use `paginationMode: "pages"` (default) with
 `useQuery` for small tables or when you prefer explicit page navigation:
@@ -797,7 +822,7 @@ pytest api/tests/  # requires PostgreSQL configured through .env
 
 - **One models file**: All SQLAlchemy models live in `api/database.py` — do not split into separate files.
 - **UUID primary keys**: All models inherit from `Base` which provides `id: UUID` automatically.
-- **Pagination**: Use `paginate_select()` from `api/core/pagination.py` — returns `Pagination[T]`.
+- **Pagination**: Use `paginate_select()` from `api/core/pagination.py` — returns `Pagination[T]`. Infinite-scroll clients send `skip_list_meta=true`; on `page > 1` the engine skips `COUNT(*)` and group summaries (totals stay on page 1).
 - **File storage**: Always store only the S3 key (not full URL) in the DB. The bucket name comes from `S3_BUCKET`.
 - **Authorisation**: scope-based, via `Security(get_current_user, scopes=[...])`. Scopes come from the database each request, never from the token, and there is no development bypass — a missing scope is 403 everywhere.
 - **Roles**: a user holds many (`user_roles`), and a role holds many scopes (`role_scopes`). Roles carry no authority of their own; every check resolves to scopes.
