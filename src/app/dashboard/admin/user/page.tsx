@@ -392,7 +392,6 @@ export default function Page() {
   const toolbar = (
     <DataTableAdvancedToolbar
       table={table}
-      className="p-1"
       onRefresh={refetch}
       isRefreshing={isFetching}
       shallow={false}

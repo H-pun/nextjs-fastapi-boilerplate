@@ -82,7 +82,7 @@ export function DataTableAdvancedToolbar<TData>({
           <div
             role="toolbar"
             aria-orientation="horizontal"
-            className="flex w-full items-start justify-between gap-2 p-1"
+            className="flex w-full items-start justify-between gap-2"
           >
             <div className="flex flex-1 flex-wrap items-center gap-2">
               {children}
