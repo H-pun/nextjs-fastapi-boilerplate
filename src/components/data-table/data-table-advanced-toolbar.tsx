@@ -1,7 +1,7 @@
 "use client";
 
 import type { Table } from "@tanstack/react-table";
-import type * as React from "react";
+import * as React from "react";
 
 import { DataTablePropertyBar } from "@/components/data-table/data-table-property-bar";
 import {
@@ -11,6 +11,10 @@ import {
 import { DataTableQueryKeysProvider } from "@/components/data-table/data-table-query-keys";
 import { DataTableResetFilters } from "@/components/data-table/data-table-reset-filters";
 import { DataTableSettingsMenu } from "@/components/data-table/data-table-settings-menu";
+import {
+  DataTableSortButton,
+  DataTableSortProvider,
+} from "@/components/data-table/data-table-sort-chip";
 import { cn } from "@/lib/utils";
 
 interface DataTableAdvancedToolbarProps<
@@ -59,55 +63,82 @@ export function DataTableAdvancedToolbar<TData>({
     table,
     propertyBarOpenKeys
   );
+  const [openFilterId, setOpenFilterId] = React.useState<string | null>(null);
+  const [advancedFilterMode, setAdvancedFilterMode] = React.useState(false);
 
   return (
-    // The search box and Reset write the table's params but never see the
-    // table, so its names reach them from here.
+    // The search box writes the table's params but never sees the table, so
+    // its names reach it from here.
     <DataTableQueryKeysProvider
       keys={table.options.meta?.queryKeys}
       paginationMode={table.options.meta?.paginationMode}
     >
-      <div className={cn("flex w-full min-w-0 flex-col gap-1", className)} {...props}>
+      <DataTableSortProvider table={table}>
         <div
-          role="toolbar"
-          aria-orientation="horizontal"
-          className="flex w-full items-start justify-between gap-2 p-1"
+          className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+          {...props}
         >
-          <div className="flex flex-1 flex-wrap items-center gap-2">
-            {children}
-            {!hidePropertyBar ? (
-              <DataTablePropertyBarToggle
-                table={table}
-                open={propertyBarOpen}
-                onOpenChange={setPropertyBarOpen}
-                shallow={shallow}
-              />
-            ) : null}
-            <DataTableResetFilters />
-          </div>
-          <div className="flex items-center gap-2">
-            <DataTableSettingsMenu
-              table={table}
-              onRefresh={onRefresh}
-              isRefreshing={isRefreshing}
-              columnControls={columnControls}
-            />
-            {trailing}
-          </div>
-        </div>
-        {!hidePropertyBar && propertyBarOpen ? (
-          <DataTablePropertyBar
-            table={table}
-            shallow={shallow}
-            debounceMs={debounceMs}
-            throttleMs={throttleMs}
-            className="w-full px-1"
-            filterMenuExtras={filterMenuExtras}
+          <div
+            role="toolbar"
+            aria-orientation="horizontal"
+            className="flex w-full items-start justify-between gap-2 p-1"
           >
-            {propertyBar}
-          </DataTablePropertyBar>
-        ) : null}
-      </div>
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              {children}
+              <DataTableSortButton
+                propertyBarOpen={propertyBarOpen}
+                onPropertyBarOpenChange={setPropertyBarOpen}
+              />
+              {!hidePropertyBar ? (
+                <DataTablePropertyBarToggle
+                  table={table}
+                  open={propertyBarOpen}
+                  onOpenChange={setPropertyBarOpen}
+                  shallow={shallow}
+                  debounceMs={debounceMs}
+                  throttleMs={throttleMs}
+                  menuExtras={filterMenuExtras}
+                  onFilterCreated={(filterId) => {
+                    setAdvancedFilterMode(false);
+                    setOpenFilterId(filterId);
+                  }}
+                  onAdvancedFilterStart={() => {
+                    setAdvancedFilterMode(true);
+                    setOpenFilterId("advanced");
+                  }}
+                />
+              ) : (
+                <DataTableResetFilters />
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <DataTableSettingsMenu
+                table={table}
+                onRefresh={onRefresh}
+                isRefreshing={isRefreshing}
+                columnControls={columnControls}
+              />
+              {trailing}
+            </div>
+          </div>
+          {!hidePropertyBar && propertyBarOpen ? (
+            <DataTablePropertyBar
+              table={table}
+              shallow={shallow}
+              debounceMs={debounceMs}
+              throttleMs={throttleMs}
+              className="w-full px-1"
+              filterMenuExtras={filterMenuExtras}
+              openFilterId={openFilterId}
+              onOpenFilterIdChange={setOpenFilterId}
+              advancedFilterMode={advancedFilterMode}
+              onAdvancedFilterModeChange={setAdvancedFilterMode}
+            >
+              {propertyBar}
+            </DataTablePropertyBar>
+          ) : null}
+        </div>
+      </DataTableSortProvider>
     </DataTableQueryKeysProvider>
   );
 }

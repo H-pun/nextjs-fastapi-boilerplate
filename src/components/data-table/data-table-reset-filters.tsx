@@ -58,12 +58,13 @@ export function DataTableResetFilters() {
   return (
     <Button
       variant="ghost"
-      className="font-normal"
+      size="sm"
+      className="text-muted-foreground h-7 px-2 font-normal hover:text-foreground"
       onClick={() =>
         void clear(Object.fromEntries(cleared.map((key) => [key, null])))
       }
     >
-      <X className="text-muted-foreground" />
+      <X className="size-3.5" />
       Reset
     </Button>
   );

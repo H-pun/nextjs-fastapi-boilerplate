@@ -12,6 +12,7 @@ import { toInfiniteQueryParams, useTableUrlState } from "@/hooks/use-table-url-s
 import { getRoles } from "@/lib/api/access";
 import { RoleChecklist } from "./_components/role-checklist";
 import { RoleFilter } from "./_components/role-filter";
+import { UserRowContextMenu } from "./_components/user-row-actions";
 import { getColumns } from "./columns";
 import {
   changeRole,
@@ -454,6 +455,9 @@ export default function Page() {
             infinite={infiniteState}
             className={dimWhileFetching}
             onRowClick={actions.onEdit}
+            renderRowContextMenu={(user) => (
+              <UserRowContextMenu user={user} {...actions} />
+            )}
           >
             {toolbar}
           </DataTable>

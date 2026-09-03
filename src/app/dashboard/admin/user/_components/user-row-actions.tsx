@@ -5,6 +5,11 @@ import { Ellipsis } from "lucide-react";
 import type { UserData } from "@/lib/types/user";
 import { Button } from "@/components/ui/button";
 import {
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -48,5 +53,26 @@ export function UserRowActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Right-click menu items for a user row — mirrors the actions dropdown. */
+export function UserRowContextMenu({
+  user,
+  onEdit,
+  onDelete,
+  onResetPassword,
+}: { user: UserData } & UserRowActionsConfig) {
+  return (
+    <ContextMenuGroup>
+      <ContextMenuItem onSelect={() => onEdit(user)}>Edit</ContextMenuItem>
+      <ContextMenuItem onSelect={() => onResetPassword(user)}>
+        Reset password
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem variant="destructive" onSelect={() => onDelete(user)}>
+        Delete
+      </ContextMenuItem>
+    </ContextMenuGroup>
   );
 }

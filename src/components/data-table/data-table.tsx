@@ -27,6 +27,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown } from "lucide-react";
 import * as React from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 
 import {
   DataTableInfiniteFooter,
@@ -34,7 +35,11 @@ import {
 } from "@/components/data-table/data-table-infinite-footer";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import {
-  Table,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   TableBody,
   TableCell,
   TableHead,
@@ -42,14 +47,108 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  getGroupCount,
-  getGroupLabel,
-  getRowGroupKey,
-  indexRowsByGroupKey,
-} from "@/lib/data-table-grouping";
+  buildVirtualTableRows,
+  estimateVirtualRowHeight,
+  type VirtualTableRow,
+} from "@/lib/data-table-virtual-rows";
 import { getColumnPinningStyle } from "@/lib/data-table";
 import type { GroupSummary } from "@/lib/types/pagination";
 import { cn } from "@/lib/utils";
+
+/** Clears below the sticky dashboard header (`h-14` = 3.5rem). */
+const STICKY_HEADER_TOP_PX = 56;
+
+const stickyHeadClass = "bg-background";
+
+function getDocumentTop(element: HTMLElement) {
+  return element.getBoundingClientRect().top + window.scrollY;
+}
+
+function VirtualSpacerRow({
+  colSpan,
+  height,
+}: {
+  colSpan: number;
+  height: number;
+}) {
+  return (
+    <TableRow aria-hidden="true" className="border-0 hover:bg-transparent">
+      <TableCell colSpan={colSpan} className="p-0 border-0">
+        <div style={{ height }} aria-hidden="true" />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function renderVirtualTableRow<TData>({
+  item,
+  visibleColumnCount,
+  collapsedGroups,
+  pinnedOffsets,
+  sortableColumnIds,
+  onRowClick,
+  renderRowContextMenu,
+  onToggleGroup,
+  virtualIndex,
+  measureElement,
+}: {
+  item: VirtualTableRow<TData>;
+  visibleColumnCount: number;
+  collapsedGroups: Set<string>;
+  pinnedOffsets: Record<string, number>;
+  sortableColumnIds: string[];
+  onRowClick?: (row: TData) => void;
+  renderRowContextMenu?: (row: TData) => React.ReactNode;
+  onToggleGroup: (groupKey: string) => void;
+  virtualIndex?: number;
+  measureElement?: (node: Element | null) => void;
+}) {
+  const measureProps =
+    virtualIndex !== undefined && measureElement
+      ? ({
+          "data-index": virtualIndex,
+          ref: measureElement,
+        } as const)
+      : {};
+
+  if (item.kind === "group-header") {
+    return (
+      <TableRow {...measureProps} className="bg-muted/40 hover:bg-muted/40">
+        <TableCell colSpan={visibleColumnCount} className="py-2">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 text-left font-medium"
+            onClick={() => onToggleGroup(item.groupKey)}
+          >
+            <ChevronDown
+              className={cn(
+                "text-muted-foreground size-4 shrink-0 transition-transform",
+                collapsedGroups.has(item.groupKey) && "-rotate-90"
+              )}
+            />
+            <span className="truncate">{item.label}</span>
+            {item.count !== undefined ? (
+              <span className="text-muted-foreground text-xs font-normal">
+                {item.count}
+              </span>
+            ) : null}
+          </button>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  return (
+    <DataTableDataRow
+      row={item.row}
+      pinnedOffsets={pinnedOffsets}
+      sortableColumnIds={sortableColumnIds}
+      onRowClick={onRowClick}
+      renderRowContextMenu={renderRowContextMenu}
+      measureProps={measureProps}
+    />
+  );
+}
 
 interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   table: TanstackTable<TData>;
@@ -63,6 +162,8 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
    * have to stop propagation themselves, or they fire this too.
    */
   onRowClick?: (row: TData) => void;
+  /** Right-click menu content for a data row. Omit to disable. */
+  renderRowContextMenu?: (row: TData) => React.ReactNode;
 }
 
 /**
@@ -86,11 +187,17 @@ function getDragStyle(
   transition: string | undefined,
   isDragging: boolean
 ): React.CSSProperties {
+  // Never leave a transform on idle headers — any transform creates a
+  // containing block and kills `position: sticky` on the same element.
+  if (!isDragging) {
+    return { transition };
+  }
+
   return {
     transform: CSS.Translate.toString(transform),
     transition,
-    opacity: isDragging ? 0.8 : undefined,
-    zIndex: isDragging ? 2 : undefined,
+    opacity: 0.8,
+    zIndex: 40,
   };
 }
 
@@ -121,12 +228,17 @@ function DraggableTableHead<TData>({
       // `touch-none` is what lets a touch drag begin at all; the cost is that
       // the table can only be scrolled sideways by touching its body.
       className={cn(
-        "touch-none select-none",
+        stickyHeadClass,
+        "sticky border-b touch-none select-none",
         isDragging ? "cursor-grabbing" : "cursor-grab"
       )}
       style={{
         ...getColumnPinningStyle({ column: header.column }),
         ...getDragStyle(transform, transition, isDragging),
+        // Pinning helper uses `relative` when unpinned — force sticky for headers.
+        position: "sticky",
+        top: STICKY_HEADER_TOP_PX,
+        zIndex: isDragging ? 40 : 20,
       }}
       {...attributes}
       {...listeners}
@@ -199,16 +311,35 @@ function DataTableDataRow<TData>({
   pinnedOffsets,
   sortableColumnIds,
   onRowClick,
+  renderRowContextMenu,
+  measureProps,
 }: {
   row: Row<TData>;
   pinnedOffsets: Record<string, number>;
   sortableColumnIds: string[];
   onRowClick?: (row: TData) => void;
+  renderRowContextMenu?: (row: TData) => React.ReactNode;
+  measureProps?: {
+    "data-index"?: number;
+    ref?: (node: Element | null) => void;
+  };
 }) {
-  return (
+  const rowNode = (
     <TableRow
-      data-state={row.getIsSelected() && "selected"}
-      className={cn("group/row", onRowClick && "cursor-pointer")}
+      {...measureProps}
+      data-state={
+        renderRowContextMenu
+          ? undefined
+          : row.getIsSelected()
+            ? "selected"
+            : undefined
+      }
+      className={cn(
+        "group/row",
+        onRowClick && "cursor-pointer",
+        renderRowContextMenu && row.getIsSelected() && "bg-muted",
+        renderRowContextMenu && "data-[state=open]:bg-muted/50"
+      )}
       onClick={onRowClick ? () => onRowClick(row.original) : undefined}
     >
       <DataTableRowCells
@@ -217,6 +348,19 @@ function DataTableDataRow<TData>({
         sortableColumnIds={sortableColumnIds}
       />
     </TableRow>
+  );
+
+  if (!renderRowContextMenu) return rowNode;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild className="select-text">
+        {rowNode}
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {renderRowContextMenu(row.original)}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -228,6 +372,7 @@ export function DataTable<TData>({
   children,
   className,
   onRowClick,
+  renderRowContextMenu,
   ...props
 }: DataTableProps<TData>) {
   const sensors = useSensors(
@@ -251,7 +396,10 @@ export function DataTable<TData>({
   const leftPinned = table.getLeftVisibleLeafColumns();
   const rightPinned = table.getRightVisibleLeafColumns();
   const headerRef = React.useRef<HTMLTableSectionElement>(null);
-  const loadMoreRef = React.useRef<HTMLTableRowElement>(null);
+  const bodyRef = React.useRef<HTMLTableSectionElement>(null);
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+  const loadMoreRef = React.useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = React.useState<number | null>(null);
   const [pinnedWidths, setPinnedWidths] = React.useState<
     Record<string, number>
   >({});
@@ -333,7 +481,10 @@ export function DataTable<TData>({
   >({});
 
   const collapsedGroups = React.useMemo(
-    () => (groupBy ? (collapsedByGroup[groupBy] ?? new Set<string>()) : new Set()),
+    () =>
+      groupBy
+        ? (collapsedByGroup[groupBy] ?? new Set<string>())
+        : new Set<string>(),
     [collapsedByGroup, groupBy]
   );
 
@@ -341,7 +492,7 @@ export function DataTable<TData>({
     (groupKey: string) => {
       if (!groupBy) return;
       setCollapsedByGroup((previous) => {
-        const current = new Set(previous[groupBy] ?? []);
+        const current = new Set<string>(previous[groupBy] ?? []);
         if (current.has(groupKey)) current.delete(groupKey);
         else current.add(groupKey);
         return { ...previous, [groupBy]: current };
@@ -353,8 +504,104 @@ export function DataTable<TData>({
   const visibleColumnCount = table.getVisibleLeafColumns().length;
   const tableRows = table.getRowModel().rows;
 
+  const virtualItems = React.useMemo(() => {
+    if (!infinite) return [];
+    return buildVirtualTableRows({
+      tableRows,
+      groupBy,
+      groupSummaries,
+      collapsedGroups,
+    });
+  }, [
+    collapsedGroups,
+    groupBy,
+    groupSummaries,
+    infinite,
+    tableRows,
+  ]);
+
+  const updateScrollMargin = React.useCallback(() => {
+    const table = bodyRef.current?.closest("table");
+    const thead = headerRef.current;
+    if (!table || !thead) return;
+    setScrollMargin(getDocumentTop(table) + thead.offsetHeight);
+  }, []);
+
+  const assignBodyRef = React.useCallback(
+    (node: HTMLTableSectionElement | null) => {
+      bodyRef.current = node;
+      if (!node || !infinite) return;
+
+      const table = node.closest("table");
+      const thead = headerRef.current ?? table?.querySelector("thead");
+      if (!table || !thead) return;
+
+      setScrollMargin(getDocumentTop(table) + thead.offsetHeight);
+    },
+    [infinite]
+  );
+
+  React.useLayoutEffect(() => {
+    if (!infinite) {
+      setScrollMargin(null);
+      return;
+    }
+
+    updateScrollMargin();
+
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(updateScrollMargin);
+    observer.observe(container);
+    window.addEventListener("resize", updateScrollMargin);
+    window.addEventListener("scroll", updateScrollMargin, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScrollMargin);
+      window.removeEventListener("scroll", updateScrollMargin);
+    };
+  }, [infinite, updateScrollMargin, virtualItems.length]);
+
+  const scrollMarginReady = scrollMargin !== null;
+  const resolvedScrollMargin = scrollMargin ?? 0;
+
+  const rowVirtualizer = useWindowVirtualizer({
+    count: infinite && scrollMarginReady ? virtualItems.length : 0,
+    estimateSize: (index) =>
+      estimateVirtualRowHeight(virtualItems[index]),
+    scrollMargin: resolvedScrollMargin,
+    overscan: 12,
+    getItemKey: (index) => virtualItems[index]?.id ?? index,
+  });
+
+  const virtualRows =
+    infinite && scrollMarginReady ? rowVirtualizer.getVirtualItems() : [];
+  const virtualPaddingTop =
+    infinite && scrollMarginReady && virtualRows.length > 0
+      ? Math.max(
+          0,
+          virtualRows[0].start - rowVirtualizer.options.scrollMargin
+        )
+      : 0;
+  const virtualPaddingBottom =
+    infinite && scrollMarginReady && virtualRows.length > 0
+      ? Math.max(
+          0,
+          rowVirtualizer.getTotalSize() -
+            virtualRows[virtualRows.length - 1].end
+        )
+      : 0;
+
   React.useEffect(() => {
     if (!infinite?.hasNextPage || infinite.isFetchingNextPage) return;
+
+    const lastItem = virtualRows[virtualRows.length - 1];
+    if (lastItem && lastItem.index >= Math.max(0, virtualItems.length - 8)) {
+      infinite.onLoadMore();
+      return;
+    }
 
     const target = loadMoreRef.current;
     if (!target) return;
@@ -365,195 +612,87 @@ export function DataTable<TData>({
           infinite.onLoadMore();
         }
       },
-      { root: null, rootMargin: "400px" }
+      { root: null, rootMargin: "600px" }
     );
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [
-    infinite?.hasNextPage,
-    infinite?.isFetchingNextPage,
-    infinite?.onLoadMore,
-    tableRows.length,
-  ]);
+  }, [infinite, virtualItems.length, virtualRows]);
 
-  const loadMoreSentinel = React.useMemo(() => {
-    if (!infinite?.hasNextPage && !infinite?.isFetchingNextPage) return null;
-
-    return (
-      <TableRow ref={loadMoreRef} className="hover:bg-transparent">
-        <TableCell
-          colSpan={visibleColumnCount}
-          className="h-10 text-center text-muted-foreground text-sm"
-        >
-          {infinite.isFetchingNextPage ? (
-            <span className="inline-flex items-center gap-2">
-              Loading more…
-            </span>
-          ) : null}
-        </TableCell>
-      </TableRow>
-    );
-  }, [
-    infinite?.hasNextPage,
-    infinite?.isFetchingNextPage,
-    visibleColumnCount,
-  ]);
-
-  const flatInfiniteBodyRows = React.useMemo(() => {
-    if (!infinite || groupBy) return null;
-    if (!tableRows.length) return null;
-
-    return (
+  const virtualBodyRows =
+    infinite &&
+    scrollMarginReady &&
+    (virtualItems.length > 0 || infinite.hasNextPage) ? (
       <>
-        {tableRows.map((row) => (
-          <DataTableDataRow
-            key={row.id}
-            row={row}
-            pinnedOffsets={pinnedOffsets}
-            sortableColumnIds={sortableColumnIds}
-            onRowClick={onRowClick}
+        {virtualPaddingTop > 0 ? (
+          <VirtualSpacerRow
+            colSpan={visibleColumnCount}
+            height={virtualPaddingTop}
           />
-        ))}
-        {loadMoreSentinel}
+        ) : null}
+        {virtualRows.map((virtualRow) => {
+          const item = virtualItems[virtualRow.index];
+          if (!item) return null;
+
+          return (
+            <React.Fragment key={item.id}>
+              {renderVirtualTableRow({
+                item,
+                visibleColumnCount,
+                collapsedGroups,
+                pinnedOffsets,
+                sortableColumnIds,
+                onRowClick,
+                renderRowContextMenu,
+                onToggleGroup: toggleGroup,
+                virtualIndex: virtualRow.index,
+                measureElement: rowVirtualizer.measureElement,
+              })}
+            </React.Fragment>
+          );
+        })}
+        {virtualPaddingBottom > 0 ? (
+          <VirtualSpacerRow
+            colSpan={visibleColumnCount}
+            height={virtualPaddingBottom}
+          />
+        ) : null}
       </>
-    );
-  }, [
-    groupBy,
-    infinite,
-    loadMoreSentinel,
-    onRowClick,
-    pinnedOffsets,
-    sortableColumnIds,
-    tableRows,
-  ]);
+    ) : null;
 
   const bodyRows = React.useMemo(() => {
-    // Ungrouped infinite rows use flatInfiniteBodyRows above.
-    if (infinite && !groupBy) return null;
-    if (!tableRows.length && !infinite?.hasNextPage) return null;
+    if (infinite) return null;
+    if (!tableRows.length) return null;
 
-    const elements: React.ReactNode[] = [];
+    const items = buildVirtualTableRows({
+      tableRows,
+      groupBy,
+      groupSummaries,
+      collapsedGroups,
+    });
 
-    const pushGroupHeader = (
-      groupKey: string,
-      label: string,
-      count: number | undefined
-    ) => {
-      const collapsed = collapsedGroups.has(groupKey);
-      elements.push(
-        <TableRow
-          key={`group-${groupKey}-${elements.length}`}
-          className="bg-muted/40 hover:bg-muted/40"
-        >
-          <TableCell colSpan={visibleColumnCount} className="py-2">
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 text-left font-medium"
-              onClick={() => toggleGroup(groupKey)}
-            >
-              <ChevronDown
-                className={cn(
-                  "text-muted-foreground size-4 shrink-0 transition-transform",
-                  collapsed && "-rotate-90"
-                )}
-              />
-              <span className="truncate">{label}</span>
-              {count !== undefined ? (
-                <span className="text-muted-foreground text-xs font-normal">
-                  {count}
-                </span>
-              ) : null}
-            </button>
-          </TableCell>
-        </TableRow>
-      );
-      return collapsed;
-    };
-
-    const pushDataRow = (row: Row<TData>) => {
-      elements.push(
-        <DataTableDataRow
-          key={row.id}
-          row={row}
-          pinnedOffsets={pinnedOffsets}
-          sortableColumnIds={sortableColumnIds}
-          onRowClick={onRowClick}
-        />
-      );
-    };
-
-    if (groupBy && groupSummaries?.length) {
-      const rowsByGroup = indexRowsByGroupKey(tableRows, groupBy);
-      const renderedKeys = new Set<string>();
-
-      for (const summary of groupSummaries) {
-        const rows = rowsByGroup.get(summary.id) ?? [];
-        if (summary.count <= 0 && rows.length === 0) continue;
-
-        renderedKeys.add(summary.id);
-        const collapsed = pushGroupHeader(summary.id, summary.label, summary.count);
-        if (!collapsed) {
-          for (const row of rows) {
-            pushDataRow(row);
-          }
-        }
-      }
-
-      for (const [groupKey, rows] of rowsByGroup) {
-        if (renderedKeys.has(groupKey) || rows.length === 0) continue;
-
-        const collapsed = pushGroupHeader(
-          groupKey,
-          getGroupLabel(groupKey, groupSummaries),
-          getGroupCount(groupKey, groupSummaries)
-        );
-        if (!collapsed) {
-          for (const row of rows) {
-            pushDataRow(row);
-          }
-        }
-      }
-    } else if (groupBy) {
-      let lastGroupKey: string | null = null;
-
-      for (const row of tableRows) {
-        const groupKey = getRowGroupKey(row, groupBy);
-
-        if (groupKey !== lastGroupKey) {
-          lastGroupKey = groupKey;
-          pushGroupHeader(
-            groupKey,
-            getGroupLabel(groupKey, groupSummaries),
-            getGroupCount(groupKey, groupSummaries)
-          );
-        }
-
-        if (collapsedGroups.has(groupKey)) {
-          continue;
-        }
-
-        pushDataRow(row);
-      }
-    } else {
-      for (const row of tableRows) {
-        pushDataRow(row);
-      }
-    }
-
-    if (loadMoreSentinel) {
-      elements.push(loadMoreSentinel);
-    }
-
-    return elements;
+    return items.map((item) => (
+      <React.Fragment key={item.id}>
+        {renderVirtualTableRow({
+          item,
+          visibleColumnCount,
+          collapsedGroups,
+          pinnedOffsets,
+          sortableColumnIds,
+          onRowClick,
+          renderRowContextMenu,
+          onToggleGroup: toggleGroup,
+        })}
+      </React.Fragment>
+    ));
   }, [
     collapsedGroups,
     groupBy,
     groupSummaries,
     infinite,
-    loadMoreSentinel,
     onRowClick,
     pinnedOffsets,
+    renderRowContextMenu,
     sortableColumnIds,
     tableRows,
     toggleGroup,
@@ -561,7 +700,15 @@ export function DataTable<TData>({
   ]);
 
   const tableBodyContent =
-    flatInfiniteBodyRows ??
+    virtualBodyRows ??
+    (infinite && !scrollMarginReady ? (
+      <TableRow aria-hidden="true" className="border-0 hover:bg-transparent">
+        <TableCell
+          colSpan={visibleColumnCount}
+          className="h-0 p-0 border-0"
+        />
+      </TableRow>
+    ) : null) ??
     bodyRows ?? (
       <TableRow>
         <TableCell
@@ -585,13 +732,23 @@ export function DataTable<TData>({
         modifiers={[restrictToHorizontalAxis]}
         onDragEnd={onDragEnd}
       >
-        <div className="min-w-0 overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader ref={headerRef}>
+        <div ref={tableContainerRef} className="min-w-0">
+          {/*
+            No overflow-x wrapper here — any overflow ancestor traps sticky
+            headers so they scroll away with the page. Horizontal overflow is
+            rare on these tables; pinned columns still use sticky left/right
+            against the viewport.
+          */}
+          <table
+            data-slot="table"
+            className="w-full caption-bottom border-separate border-spacing-0 text-sm"
+          >
+            <TableHeader ref={headerRef} className="[&_tr]:border-b-0">
               {table.getHeaderGroups().map((headerGroup) => (
-                // The header row takes the same hover tint as any other row, so
-                // its pinned cell has to follow along or it stays behind, white.
-                <TableRow key={headerGroup.id} className="group/row">
+                <TableRow
+                  key={headerGroup.id}
+                  className="group/row hover:bg-transparent"
+                >
                   <SortableContext
                     items={sortableColumnIds}
                     strategy={horizontalListSortingStrategy}
@@ -602,13 +759,19 @@ export function DataTable<TData>({
                           key={header.id}
                           colSpan={header.colSpan}
                           data-pinned-column={header.column.id}
-                          className={pinnedCellClass}
+                          className={cn(
+                            stickyHeadClass,
+                            pinnedCellClass,
+                            "sticky border-b"
+                          )}
                           style={{
                             ...getColumnPinningStyle({
                               column: header.column,
                               offset: pinnedOffsets[header.column.id],
                               withBorder: true,
                             }),
+                            top: STICKY_HEADER_TOP_PX,
+                            zIndex: 30,
                           }}
                         >
                           {header.isPlaceholder
@@ -619,20 +782,37 @@ export function DataTable<TData>({
                               )}
                         </TableHead>
                       ) : (
-                        <DraggableTableHead key={header.id} header={header} />
+                        <DraggableTableHead
+                          key={header.id}
+                          header={header}
+                        />
                       )
                     )}
                   </SortableContext>
                 </TableRow>
               ))}
             </TableHeader>
-            <TableBody>{tableBodyContent}</TableBody>
-          </Table>
+            <TableBody
+              ref={assignBodyRef}
+              className="[&_td]:border-b [&_tr:last-child_td]:border-b-0"
+            >
+              {tableBodyContent}
+            </TableBody>
+          </table>
         </div>
       </DndContext>
       <div className="flex flex-col gap-2.5">
         {infinite ? (
-          <DataTableInfiniteFooter infinite={infinite} />
+          <>
+            {(infinite.hasNextPage || infinite.isFetchingNextPage) && (
+              <div
+                ref={loadMoreRef}
+                className="h-1 w-full"
+                aria-hidden="true"
+              />
+            )}
+            <DataTableInfiniteFooter infinite={infinite} />
+          </>
         ) : (
           <DataTablePagination table={table} />
         )}

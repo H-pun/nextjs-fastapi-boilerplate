@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { DataTableAddFilter } from "@/components/data-table/data-table-add-filter";
 import { DataTableColumnFilterChips } from "@/components/data-table/data-table-column-filter-chip";
+import { DataTableResetFilters } from "@/components/data-table/data-table-reset-filters";
 import { DataTableSortChips } from "@/components/data-table/data-table-sort-chip";
 import { useDataTableFilters } from "@/hooks/use-data-table-filters";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,12 @@ interface DataTablePropertyBarProps<TData> {
   children?: React.ReactNode;
   /** Page-specific entries in the "+ Filter" picker. */
   filterMenuExtras?: React.ReactNode;
+  /** filterId whose editor should open (e.g. just added from the toolbar). */
+  openFilterId?: string | null;
+  onOpenFilterIdChange?: (filterId: string | null) => void;
+  /** Use the "N rules" advanced summary chip (e.g. after Add advanced filter). */
+  advancedFilterMode?: boolean;
+  onAdvancedFilterModeChange?: (advanced: boolean) => void;
 }
 
 export function DataTablePropertyBar<TData>({
@@ -31,8 +38,20 @@ export function DataTablePropertyBar<TData>({
   className,
   children,
   filterMenuExtras,
+  openFilterId: openFilterIdProp,
+  onOpenFilterIdChange,
+  advancedFilterMode: advancedFilterModeProp,
+  onAdvancedFilterModeChange,
 }: DataTablePropertyBarProps<TData>) {
-  const [openFilterId, setOpenFilterId] = React.useState<string | null>(null);
+  const [uncontrolledOpenFilterId, setUncontrolledOpenFilterId] =
+    React.useState<string | null>(null);
+  const [uncontrolledAdvanced, setUncontrolledAdvanced] = React.useState(false);
+
+  const openFilterId = openFilterIdProp ?? uncontrolledOpenFilterId;
+  const setOpenFilterId = onOpenFilterIdChange ?? setUncontrolledOpenFilterId;
+  const advancedFilterMode = advancedFilterModeProp ?? uncontrolledAdvanced;
+  const setAdvancedFilterMode =
+    onAdvancedFilterModeChange ?? setUncontrolledAdvanced;
 
   const {
     columns,
@@ -42,13 +61,38 @@ export function DataTablePropertyBar<TData>({
     onFilterRemove,
   } = useDataTableFilters(table, { shallow, debounceMs, throttleMs });
 
+  const prevFilterCountRef = React.useRef(filters.length);
+  React.useEffect(() => {
+    if (prevFilterCountRef.current > 0 && filters.length === 0) {
+      setAdvancedFilterMode(false);
+    }
+    prevFilterCountRef.current = filters.length;
+  }, [filters.length, setAdvancedFilterMode]);
+
+  // Seed one empty rule when entering advanced mode with nothing set.
+  React.useEffect(() => {
+    if (!advancedFilterMode || filters.length > 0 || !columns[0]) return;
+    addColumnFilter(columns[0]);
+  }, [addColumnFilter, advancedFilterMode, columns, filters.length]);
+
   const handleFilterAdd = React.useCallback(
     (column: Parameters<typeof addColumnFilter>[0]) => {
       const next = addColumnFilter(column);
+      // Stay in the "N rules" chip when already on the advanced path; only
+      // column-picker adds outside advanced become per-property chips.
+      if (advancedFilterMode) {
+        setOpenFilterId("advanced");
+        return;
+      }
       setOpenFilterId(next.filterId);
     },
-    [addColumnFilter]
+    [addColumnFilter, advancedFilterMode, setOpenFilterId]
   );
+
+  const handleAdvancedFilterStart = React.useCallback(() => {
+    setAdvancedFilterMode(true);
+    setOpenFilterId("advanced");
+  }, [setAdvancedFilterMode, setOpenFilterId]);
 
   return (
     <div
@@ -57,16 +101,21 @@ export function DataTablePropertyBar<TData>({
         className
       )}
     >
-      <DataTableSortChips table={table} disabled={disabled} />
+      <DataTableSortChips disabled={disabled} />
       {children}
       {filters.length > 0 ? (
         <DataTableColumnFilterChips
+          table={table}
           columns={columns}
           filters={filters}
           onFilterUpdate={onFilterUpdate}
           onFilterRemove={onFilterRemove}
           disabled={disabled}
+          shallow={shallow}
+          debounceMs={debounceMs}
+          throttleMs={throttleMs}
           openFilterId={openFilterId}
+          forceAdvanced={advancedFilterMode}
         />
       ) : null}
       <DataTableAddFilter
@@ -79,7 +128,9 @@ export function DataTablePropertyBar<TData>({
         columns={columns}
         filters={filters}
         onFilterAdd={handleFilterAdd}
+        onAdvancedFilterStart={handleAdvancedFilterStart}
       />
+      <DataTableResetFilters />
     </div>
   );
 }

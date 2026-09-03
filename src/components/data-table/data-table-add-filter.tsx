@@ -1,7 +1,7 @@
 "use client";
 
 import type { Column, Table } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 
 import { DataTableFilterItem } from "@/components/data-table/data-table-filter-controls";
@@ -20,11 +20,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Sortable,
-  SortableContent,
-  SortableOverlay,
-} from "@/components/ui/sortable";
+import { Separator } from "@/components/ui/separator";
+import { getDefaultFilterOperator } from "@/lib/data-table";
 import { useDataTableFilters } from "@/hooks/use-data-table-filters";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +44,6 @@ export function DataTableAdvancedFilterPanel<TData>({
   const id = React.useId();
   const labelId = React.useId();
   const descriptionId = React.useId();
-  const addButtonRef = React.useRef<HTMLButtonElement>(null);
 
   const {
     columns,
@@ -61,81 +57,114 @@ export function DataTableAdvancedFilterPanel<TData>({
     setFiltersAndResetPage,
   } = useDataTableFilters(table, { debounceMs, throttleMs, shallow });
 
+  const seededRef = React.useRef(false);
+
+  // Seed one empty rule when opening advanced filters with nothing set — Notion
+  // always shows a Where row ready to edit.
+  React.useEffect(() => {
+    if (seededRef.current || filters.length > 0 || columns.length === 0) {
+      return;
+    }
+
+    const target = columns[0];
+    if (!target) return;
+
+    seededRef.current = true;
+    void setFiltersAndResetPage([
+      {
+        id: target.id as Extract<keyof TData, string>,
+        value: "",
+        variant: target.columnDef.meta?.variant ?? "text",
+        operator: getDefaultFilterOperator(
+          target.columnDef.meta?.variant ?? "text"
+        ),
+        filterId: crypto.randomUUID().slice(0, 8),
+      },
+    ]);
+  }, [columns, filters.length, setFiltersAndResetPage]);
+
+  const handleDeleteAll = React.useCallback(() => {
+    seededRef.current = true;
+    onFiltersReset();
+  }, [onFiltersReset]);
+
+  const handleFilterDuplicate = React.useCallback(
+    (filterId: string) => {
+      const source = filters.find((item) => item.filterId === filterId);
+      if (!source) return;
+
+      const index = filters.findIndex((item) => item.filterId === filterId);
+      const duplicate = {
+        ...source,
+        filterId: crypto.randomUUID().slice(0, 8),
+        value: Array.isArray(source.value) ? [...source.value] : source.value,
+      };
+      const next = [...filters];
+      next.splice(index + 1, 0, duplicate);
+      void setFiltersAndResetPage(next);
+    },
+    [filters, setFiltersAndResetPage]
+  );
+
   return (
     <div
       aria-labelledby={labelId}
       aria-describedby={descriptionId}
-      className={cn("flex flex-col gap-3.5", className)}
+      className={cn("flex flex-col gap-2", className)}
       {...props}
     >
-      <div className="flex flex-col gap-1">
-        <h4 id={labelId} className="leading-none font-medium">
-          {filters.length > 0 ? "Filters" : "No filters applied"}
-        </h4>
-        <p
-          id={descriptionId}
-          className={cn(
-            "text-muted-foreground text-sm",
-            filters.length > 0 && "sr-only"
-          )}
+      <h4 id={labelId} className="sr-only">
+        Filters
+      </h4>
+      <p id={descriptionId} className="sr-only">
+        Add and modify filter rules to refine your rows.
+      </p>
+      {filters.length > 0 ? (
+        <div
+          role="list"
+          className="flex max-h-[300px] flex-col gap-1.5 overflow-x-auto overflow-y-auto"
         >
-          {filters.length > 0
-            ? "Modify filters to refine your rows."
-            : "Add filters to refine your rows."}
-        </p>
-      </div>
-      <Sortable
-        value={filters}
-        onValueChange={setFiltersAndResetPage}
-        getItemValue={(item) => item.filterId}
-      >
-        {filters.length > 0 ? (
-          <SortableContent asChild>
-            <div
-              role="list"
-              className="flex max-h-[300px] flex-col gap-2 overflow-x-auto overflow-y-auto p-1"
-            >
-              {filters.map((filter, index) => (
-                <DataTableFilterItem<TData>
-                  key={filter.filterId}
-                  filter={filter}
-                  index={index}
-                  filterItemId={`${id}-filter-${filter.filterId}`}
-                  joinOperator={joinOperator}
-                  setJoinOperator={onJoinOperatorChange}
-                  columns={columns}
-                  onFilterUpdate={onFilterUpdate}
-                  onFilterRemove={onFilterRemove}
-                />
-              ))}
-            </div>
-          </SortableContent>
-        ) : null}
-        <div className="flex w-full items-center gap-2">
-          <Button
-            className="rounded"
-            ref={addButtonRef}
-            onClick={() => onFilterAdd()}
-          >
-            Add filter
-          </Button>
-          {filters.length > 0 ? (
-            <Button variant="outline" className="rounded" onClick={onFiltersReset}>
-              Reset filters
-            </Button>
-          ) : null}
+          {filters.map((filter, index) => (
+            <DataTableFilterItem<TData>
+              key={filter.filterId}
+              filter={filter}
+              index={index}
+              filterItemId={`${id}-filter-${filter.filterId}`}
+              joinOperator={joinOperator}
+              setJoinOperator={onJoinOperatorChange}
+              columns={columns}
+              onFilterUpdate={onFilterUpdate}
+              onFilterRemove={onFilterRemove}
+              onFilterDuplicate={handleFilterDuplicate}
+            />
+          ))}
         </div>
-        <SortableOverlay>
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 h-8 min-w-[72px] rounded-sm" />
-            <div className="bg-primary/10 h-8 w-32 rounded-sm" />
-            <div className="bg-primary/10 h-8 w-32 rounded-sm" />
-            <div className="bg-primary/10 h-8 min-w-36 flex-1 rounded-sm" />
-            <div className="bg-primary/10 size-8 shrink-0 rounded-sm" />
-            <div className="bg-primary/10 size-8 shrink-0 rounded-sm" />
-          </div>
-        </SortableOverlay>
-      </Sortable>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground h-7 w-fit justify-start px-2 font-normal"
+        disabled={columns.length === 0}
+        onClick={() => onFilterAdd()}
+      >
+        <Plus className="size-3.5" />
+        Add filter rule
+        <ChevronDown className="size-3.5 opacity-60" />
+      </Button>
+      {filters.length > 0 ? (
+        <>
+          <Separator />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground h-7 w-fit justify-start px-2 font-normal"
+            onClick={handleDeleteAll}
+          >
+            <Trash2 className="size-3.5" />
+            Delete filter
+          </Button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -151,6 +180,8 @@ interface DataTableAddFilterProps<TData> {
   columns?: Column<TData>[];
   filters?: ReturnType<typeof useDataTableFilters<TData>>["filters"];
   onFilterAdd?: (column: Column<TData>) => void;
+  /** Fired when the user chooses "Add advanced filter" in the picker. */
+  onAdvancedFilterStart?: () => void;
 }
 
 export function DataTableAddFilter<TData>({
@@ -163,9 +194,9 @@ export function DataTableAddFilter<TData>({
   columns: columnsProp,
   filters: filtersProp,
   onFilterAdd: onFilterAddProp,
+  onAdvancedFilterStart,
 }: DataTableAddFilterProps<TData>) {
   const [open, setOpen] = React.useState(false);
-  const [showAdvanced, setShowAdvanced] = React.useState(false);
   const hook = useDataTableFilters(table, { debounceMs, throttleMs, shallow });
 
   const columns = columnsProp ?? hook.columns;
@@ -180,90 +211,63 @@ export function DataTableAddFilter<TData>({
     [columns, filters]
   );
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) setShowAdvanced(false);
-  };
-
   const handleColumnSelect = (column: Column<TData>) => {
     onFilterAdd(column);
     setOpen(false);
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
           disabled={disabled}
-          className="text-muted-foreground h-7 px-2 font-normal hover:text-foreground"
+          className="text-muted-foreground h-7 gap-1 px-2 font-normal hover:text-foreground"
         >
-          <Plus />
+          <Plus className="size-3.5" />
           Filter
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className={cn(
-          "p-0",
-          showAdvanced ? "w-[min(100vw-2rem,520px)]" : "w-52"
-        )}
-      >
-        {showAdvanced ? (
-          <div className="p-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-3 -ml-2 h-7 font-normal"
-              onClick={() => setShowAdvanced(false)}
-            >
-              Back
-            </Button>
-            <DataTableAdvancedFilterPanel
-              table={table}
-              shallow={shallow}
-              debounceMs={debounceMs}
-              throttleMs={throttleMs}
-            />
-          </div>
-        ) : (
-          <Command>
-            <CommandInput placeholder="Filter by..." />
-            <CommandList>
-              <CommandEmpty>No properties found.</CommandEmpty>
-              <CommandGroup>
-                {availableColumns.map((column) => {
-                  const Icon = column.columnDef.meta?.icon;
-                  const label = column.columnDef.meta?.label ?? column.id;
+      <PopoverContent align="start" className="w-52 p-0">
+        <Command>
+          <CommandInput placeholder="Filter by..." />
+          <CommandList>
+            <CommandEmpty>No properties found.</CommandEmpty>
+            <CommandGroup>
+              {availableColumns.map((column) => {
+                const Icon = column.columnDef.meta?.icon;
+                const label = column.columnDef.meta?.label ?? column.id;
 
-                  return (
-                    <CommandItem
-                      key={column.id}
-                      value={label}
-                      onSelect={() => handleColumnSelect(column)}
-                    >
-                      {Icon ? <Icon className="size-3.5 shrink-0" /> : null}
-                      {label}
-                    </CommandItem>
-                  );
-                })}
-                {menuExtras}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup>
-                <CommandItem
-                  value="Add advanced filter"
-                  onSelect={() => setShowAdvanced(true)}
-                  className="text-muted-foreground"
-                >
-                  <Plus className="size-3.5" />
-                  Add advanced filter
-                </CommandItem>
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        )}
+                return (
+                  <CommandItem
+                    key={column.id}
+                    value={label}
+                    onSelect={() => handleColumnSelect(column)}
+                  >
+                    {Icon ? <Icon className="size-3.5 shrink-0" /> : null}
+                    {label}
+                  </CommandItem>
+                );
+              })}
+              {menuExtras}
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup>
+              <CommandItem
+                value="Add advanced filter"
+                onSelect={() => {
+                  onAdvancedFilterStart?.();
+                  setOpen(false);
+                }}
+                className="text-muted-foreground"
+              >
+                <Plus className="size-3.5" />
+                Add advanced filter
+              </CommandItem>
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

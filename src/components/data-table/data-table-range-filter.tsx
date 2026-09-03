@@ -93,6 +93,7 @@ export function DataTableRangeFilter<TData>({
         aria-valuemin={min}
         aria-valuemax={max}
         data-slot="range-min"
+        data-filter-value=""
         inputMode="numeric"
         placeholder={min.toString()}
         min={min}

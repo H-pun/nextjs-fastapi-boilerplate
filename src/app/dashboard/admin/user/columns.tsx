@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Copyable } from "@/components/copyable";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 
 import { ColumnDef } from "@tanstack/react-table";
@@ -28,6 +29,11 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Identifier" />
     ),
+    cell: ({ row }) => (
+      <Copyable value={row.original.identifier}>
+        {row.original.identifier}
+      </Copyable>
+    ),
     enableColumnFilter: true,
     enableHiding: false,
     meta: {
@@ -44,7 +50,11 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Name" />
     ),
-    cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    cell: ({ row }) => (
+      <Copyable value={row.original.name}>
+        <span className="font-medium">{row.original.name}</span>
+      </Copyable>
+    ),
     enableColumnFilter: true,
     enableHiding: false,
     meta: {
@@ -61,7 +71,12 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Email" />
     ),
-    cell: ({ row }) => row.original.email || "—",
+    cell: ({ row }) =>
+      row.original.email ? (
+        <Copyable value={row.original.email}>{row.original.email}</Copyable>
+      ) : (
+        "—"
+      ),
     enableColumnFilter: true,
     meta: {
       label: "Email",
@@ -76,6 +91,11 @@ export const getColumns = (
     accessorKey: "username",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Username" />
+    ),
+    cell: ({ row }) => (
+      <Copyable value={row.original.username}>
+        {row.original.username}
+      </Copyable>
     ),
     enableColumnFilter: true,
     meta: {
@@ -112,8 +132,10 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Created" />
     ),
-    cell: ({ row }) =>
-      format(new Date(row.original.createdAt), "d MMM yyyy HH:mm"),
+    cell: ({ row }) => {
+      const label = format(new Date(row.original.createdAt), "d MMM yyyy HH:mm");
+      return <Copyable value={label}>{label}</Copyable>;
+    },
     enableColumnFilter: true,
     meta: { label: "Created at", variant: "date", icon: CalendarDays },
   },
@@ -123,8 +145,10 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Updated" />
     ),
-    cell: ({ row }) =>
-      format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm"),
+    cell: ({ row }) => {
+      const label = format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm");
+      return <Copyable value={label}>{label}</Copyable>;
+    },
     enableColumnFilter: true,
     meta: { label: "Updated at", variant: "date", icon: CalendarDays },
   },
