@@ -69,7 +69,7 @@ MOCK_USERS = [
         "Alice Walker",
         "1000000002",
         "alice.walker",
-        None,
+        "alice.walker@example.com",
         [MEMBER_ROLE_ID],
     ),
     (
@@ -101,7 +101,7 @@ MOCK_USERS = [
         "Carol Kim",
         "1000000006",
         "carol.kim",
-        None,
+        "carol.kim@example.com",
         [USER_MANAGER_ROLE_ID],
     ),
     (
@@ -141,7 +141,7 @@ MOCK_USERS = [
         "Henry Brown",
         "1000000011",
         "henry.brown",
-        None,
+        "henry.brown@example.com",
         [MEMBER_ROLE_ID],
     ),
     (
@@ -219,7 +219,7 @@ def _assign_roles(user: User, roles: list[Role]) -> None:
     user.roles = roles
 
 
-def seed_users(db: Session) -> None:
+def seed_users(db: Session, *, include_mock_users: bool = True) -> None:
     logger.info("Seeding scopes, roles, and admin user...")
 
     scopes: dict[str, Scope] = {}
@@ -261,6 +261,10 @@ def seed_users(db: Session) -> None:
     ):
         logger.info("Seeded initial admin user.")
 
+    if not include_mock_users:
+        db.flush()
+        return
+
     created_members = 0
     for user_id, name, identifier, username, email, role_ids in MOCK_USERS:
         roles = [roles_by_id[role_id] for role_id in role_ids]
@@ -282,8 +286,4 @@ def seed_users(db: Session) -> None:
 
     db.flush()
     if created_members:
-        logger.info(
-            "Seeded %s mock member user(s) (password: %s).",
-            created_members,
-            MOCK_MEMBER_PASSWORD,
-        )
+        logger.info("Seeded %s mock member user(s).", created_members)
