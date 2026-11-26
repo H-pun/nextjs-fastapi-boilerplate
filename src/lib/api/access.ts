@@ -21,12 +21,17 @@ export const getScopes = async () => {
   }
 };
 
-export const createRole = async (data: CreateRoleForm & { description?: string | null }) => {
+export const createRole = async (
+  data: CreateRoleForm & { description?: string | null }
+) => {
   const response = await axios.post<Role>("/role", data);
   return response.data;
 };
 
-export const updateRole = async (id: string, data: Partial<CreateRoleForm> & { description?: string | null, isActive?: boolean }) => {
+export const updateRole = async (
+  id: string,
+  data: Partial<CreateRoleForm> & { description?: string | null }
+) => {
   const response = await axios.patch<Role>(`/role/${id}`, data);
   return response.data;
 };

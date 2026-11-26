@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { ChevronRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 
 import { NavIcon } from "@/components/nav-icon";
 import { Navigation } from "@/lib/types/navigation";
@@ -39,6 +39,15 @@ function groupBySection(items: Navigation[]) {
     bucket.items.push(item);
   }
   return groups;
+}
+
+function ExternalLinkIndicator() {
+  return (
+    <ArrowUpRight
+      className="text-muted-foreground ml-auto size-3.5 shrink-0"
+      aria-label="Opens in a new tab"
+    />
+  );
 }
 
 export function NavMain({
@@ -133,6 +142,7 @@ export function NavMain({
                                           rel={child.external ? "noopener noreferrer" : undefined}
                                         >
                                           <span>{child.title}</span>
+                                          {child.external && <ExternalLinkIndicator />}
                                         </Link>
                                       </SidebarMenuSubButton>
                                     </SidebarMenuSubItem>
@@ -160,6 +170,7 @@ export function NavMain({
                           >
                             {item.icon && <NavIcon name={item.icon} />}
                             <span>{item.title}</span>
+                            {item.external && <ExternalLinkIndicator />}
                           </Link>
                         </SidebarMenuButton>
                         {item.badge && (

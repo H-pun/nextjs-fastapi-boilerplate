@@ -19,7 +19,6 @@ const textStyle = {
   fontFamily: "var(--font-sans)",
 };
 
-
 const baseLegend = {
   align: "left" as const,
   verticalAlign: "top" as const,

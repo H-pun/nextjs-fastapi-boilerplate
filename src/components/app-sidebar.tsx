@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavMain } from "@/components/nav-main";
 import { NavSupport } from "@/components/nav-support";
 import { NavUser } from "@/components/nav-user";
+import { TableMemoryNavigation } from "@/components/table-memory-navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -17,28 +18,31 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { getNavigation } from "@/lib/api/navigation";
+import { getMyNavigation } from "@/lib/api/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
   const user = session?.user;
 
+  // Keyed apart from the editor's ["navigation"]: this is the pruned menu for
+  // one user, and saving the tree must not overwrite it with the full list.
   const { data, isLoading } = useQuery({
-    queryKey: ["navigation"],
-    queryFn: getNavigation,
+    queryKey: ["navigation", "me"],
+    queryFn: getMyNavigation,
     enabled: !!user,
     staleTime: 1000 * 60 * 60,
   });
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
+      <TableMemoryNavigation />
       <SidebarHeader className="border-sidebar-border h-14 justify-center border-b p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex h-10 items-center gap-2.5 rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:rounded-lg dark:bg-white">
                 <Image
-                  src="/images/logo-nyamping.png"
+                  src="/images/logo.svg"
                   alt="App logo"
                   width={44}
                   height={44}
@@ -62,7 +66,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter className="border-sidebar-border gap-2 border-t p-2">
         <NavSupport />
-        <div className="px-2 pt-2 border-t mt-2 border-sidebar-border">
+        <div className="border-sidebar-border mt-1 border-t pt-2">
           <NavUser user={session?.user} />
         </div>
       </SidebarFooter>

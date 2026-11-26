@@ -1,43 +1,52 @@
+from uuid import UUID
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from api.database import Navigation, Scope
 from api.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Menu untuk Admin (akan diproteksi dengan scope "user:manage" dan "navigation:manage")
-navigation_admin = [
-    Navigation(title="User Management", url="/dashboard/user", icon="users"),
-    Navigation(title="Access Control", url="/dashboard/admin/profile-feature", icon="shield"),
-    Navigation(title="Menu Management", url="/dashboard/admin/navigation", icon="signpost"),
-    Navigation(title="API Docs", url="/dashboard/admin/docs", icon="file-code"),
+# Fixed ids so a re-run updates the seeded menu instead of duplicating it.
+# Not RFC 9562 shaped on purpose — see the note in src/lib/types/navigation.ts.
+NAV_HOME = UUID("11111111-1111-1111-1111-111111111101")
+NAV_USER = UUID("11111111-1111-1111-1111-111111111102")
+NAV_ACCESS = UUID("11111111-1111-1111-1111-111111111103")
+NAV_MENU = UUID("11111111-1111-1111-1111-111111111104")
+NAV_DOCS = UUID("11111111-1111-1111-1111-111111111105")
+
+# (id, title, url, icon, group, scope key or None for everyone, external)
+MENU = [
+    (NAV_HOME, "Home", "/dashboard", "home", "Overview", None, False),
+    (NAV_USER, "User Management", "/dashboard/admin/user", "users", "Administration", "user:manage", False),
+    (NAV_ACCESS, "Access Control", "/dashboard/admin/profile-feature", "shield", "Administration", "user:manage", False),
+    (NAV_MENU, "Menu Management", "/dashboard/admin/navigation", "signpost", "Administration", "navigation:manage", False),
+    (NAV_DOCS, "API Docs", "/dashboard/admin/docs", "file-code", "Administration", "user:manage", True),
 ]
 
-# Menu default yang terlihat oleh semua orang (bisa diakses tanpa scope khusus)
-navigation_user = [
-    Navigation(title="Home", url="/dashboard", icon="home"),
-]
 
 def seed_navigation(db: Session) -> None:
-    if db.query(Navigation).count() == 0:
-        logger.info("Seeding navigation...")
-        
-        # Cari scopes yang sudah dibuat oleh seed_users
-        scope_user_manage = db.query(Scope).filter_by(key="user:manage").first()
-        scope_nav_manage = db.query(Scope).filter_by(key="navigation:manage").first()
-        
-        # Assign scopes jika ketemu
-        if scope_user_manage:
-            navigation_admin[0].id_scope = scope_user_manage.id
-        if scope_nav_manage:
-            navigation_admin[1].id_scope = scope_nav_manage.id
-            navigation_admin[2].id_scope = scope_nav_manage.id
+    logger.info("Seeding navigation...")
 
-        # Set index order
-        for root_order, root in enumerate(navigation_user + navigation_admin):
-            root.order = root_order
-            if root.children:
-                for child_order, child in enumerate(root.children):
-                    child.order = child_order
+    scope_ids = {
+        scope.key: scope.id for scope in db.scalars(select(Scope)).all()
+    }
 
-        db.add_all(navigation_user + navigation_admin)
-        db.flush()
+    for order, (nav_id, title, url, icon, group, scope_key, external) in enumerate(MENU):
+        nav = db.get(Navigation, nav_id)
+        if nav:
+            if external and not nav.external:
+                nav.external = True
+            continue
+        db.add(Navigation(
+            id=nav_id,
+            title=title,
+            url=url,
+            icon=icon,
+            group=group,
+            order=order,
+            scope_id=scope_ids.get(scope_key) if scope_key else None,
+            external=external,
+        ))
+
+    db.flush()
+

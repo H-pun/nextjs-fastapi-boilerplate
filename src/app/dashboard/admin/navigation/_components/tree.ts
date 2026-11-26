@@ -154,9 +154,9 @@ export function moveGroup(
 
 /**
  * Which rows a set of scope keys would not see. Mirrors
- * `get_navigation_for_user` in api/services/navigation.py — including the two
- * that are easy to guess wrong: scopes have a `parentId` but holding the parent
- * grants nothing, and a parent whose submenus are all hidden drops out too.
+ * `get_navigation_for_user` in api/services/navigation.py — including the part
+ * that is easy to guess wrong: a parent whose submenus are all hidden drops
+ * out too, rather than staying as a header that expands into nothing.
  */
 export function hiddenForScopes(
   navigations: Navigation[],
@@ -166,8 +166,8 @@ export function hiddenForScopes(
   const hidden = new Set<string>();
 
   const allowed = (nav: Navigation) => {
-    if (!nav.idScope) return true;
-    const key = scopeKeyById.get(nav.idScope);
+    if (!nav.scopeId) return true;
+    const key = scopeKeyById.get(nav.scopeId);
     return !!key && held.has(key);
   };
 
@@ -206,7 +206,7 @@ export type ChangeSummary = {
 
 // `group` is deliberately absent: a section change is already visible in the
 // tree, and marking it would light up every row the admin just dragged.
-const COMPARED = ["title", "url", "icon", "idScope", "external"] as const;
+const COMPARED = ["title", "url", "icon", "scopeId", "external"] as const;
 
 function sameFields(a: Navigation, b: Navigation) {
   return COMPARED.every((field) => (a[field] ?? null) === (b[field] ?? null));

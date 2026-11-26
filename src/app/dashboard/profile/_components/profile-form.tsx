@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 import { userSchema } from "@/lib/types/user";
 import { getCurrentUser, updateUser } from "@/lib/api/user";
@@ -28,7 +29,6 @@ export default function ProfileForm() {
     defaultValues: {
       email: "",
       username: "",
-      phone: "",
     },
   });
 
@@ -54,8 +54,7 @@ export default function ProfileForm() {
       reset({
         id: data.id,
         email: data.email || "",
-        username: data.username,
-        phone: data.phone || "",
+        username: data.username || "",
       });
     }
   }, [data, reset]);
@@ -67,7 +66,11 @@ export default function ProfileForm() {
       <Field>
         <FieldLabel htmlFor="username">Username</FieldLabel>
         <Input id="username" {...register("username")} disabled={isLoading} />
-        <FieldDescription>Change your username. This will be used for login.</FieldDescription>
+        <FieldDescription>
+          {data && !data.username
+            ? "Pick a username to sign in with directly. Until then, use your email address."
+            : "Change your username. This will be used for login."}
+        </FieldDescription>
         <FieldError errors={[errors.username]} />
       </Field>
 
@@ -77,15 +80,9 @@ export default function ProfileForm() {
         <FieldError errors={[errors.email]} />
       </Field>
 
-      <Field>
-        <FieldLabel htmlFor="phone">Phone</FieldLabel>
-        <Input id="phone" type="tel" inputMode="numeric" {...register("phone")} disabled={isLoading} />
-        <FieldDescription>Enter with country code, e.g., +628123456789</FieldDescription>
-        <FieldError errors={[errors.phone]} />
-      </Field>
-
       <Button type="submit" disabled={isLoading}>
-        <Save className="mr-2 h-4 w-4" />
+        {isPending && <Spinner />}
+        {!isPending && <Save className="mr-2 h-4 w-4" />}
         Save Changes
       </Button>
     </form>

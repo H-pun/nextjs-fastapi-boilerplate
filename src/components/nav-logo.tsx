@@ -17,7 +17,7 @@ export function NavLogo() {
           <Link href="/">
             <div className="relative size-8 shrink-0">
               <Image
-                src="/images/logo.png"
+                src="/images/logo.svg"
                 alt="Logo"
                 fill
                 sizes="32px"

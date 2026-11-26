@@ -56,7 +56,7 @@ const blankMenu = (group?: string): Navigation => ({
   url: "/",
   order: 0,
   external: false,
-  idScope: null,
+  scopeId: null,
   ...(group ? { group } : {}),
 });
 

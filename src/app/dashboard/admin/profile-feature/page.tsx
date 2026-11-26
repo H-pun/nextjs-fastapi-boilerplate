@@ -4,7 +4,6 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
-  Lock,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -27,7 +26,6 @@ import {
 import type { Role, Scope } from "@/lib/types/access";
 
 import { PageHeader } from "@/components/page-header";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,10 +38,8 @@ import {
 } from "@/components/ui/empty";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -59,11 +55,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -83,24 +74,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Scope.parent_id is never populated by the seeder, so the hierarchy lives in
-// the key itself: everything before the first dot is the group.
+// Scopes have no parent column — the hierarchy lives in the key, which always
+// reads `resource:action`. The part before the colon is the group.
+// Unlisted resources still render, using the raw key as their label.
 const GROUP_META: Record<string, { label: string; hint: string }> = {
-  administration: {
-    label: "Administration",
-    hint: "Manage users, roles, master data, and act on behalf of others.",
+  user: {
+    label: "Users & Access",
+    hint: "View the user directory, and manage users, roles, and permissions.",
   },
-  projects: {
-    label: "Projects",
-    hint: "Open a project and view its assignment, team, timesheet, documents, risk, notes, and issues.",
-  },
-  timesheets: {
-    label: "Timesheets",
-    hint: "Fill in your own timesheet, browse history, and approve your team's.",
-  },
-  reports: {
-    label: "Reports",
-    hint: "Download reports and view project productivity dashboards.",
+  navigation: {
+    label: "Navigation",
+    hint: "Read the sidebar menu, and edit its structure and visibility.",
   },
 };
 
@@ -113,8 +97,10 @@ type ScopeGroup = {
 
 function groupScopes(scopes: Scope[]): ScopeGroup[] {
   const groups: ScopeGroup[] = [];
-  for (const scope of [...scopes].sort((a, b) => a.order - b.order)) {
-    const key = scope.key.split(".")[0];
+  // The API returns these ordered by key, so the resource prefix already keeps
+  // each group contiguous — no sort here to disagree with it.
+  for (const scope of scopes) {
+    const key = scope.key.split(":")[0];
     let bucket = groups.find((g) => g.key === key);
     if (!bucket) {
       const meta = GROUP_META[key];
@@ -131,16 +117,7 @@ function groupScopes(scopes: Scope[]): ScopeGroup[] {
   return groups;
 }
 
-const emptyForm = { code: "", name: "", description: "" };
-
-function RoleSectionHeader({ label, count }: { label: string; count: number }) {
-  return (
-    <div className="bg-muted/30 text-muted-foreground flex items-center justify-between border-b px-4 py-1.5 text-xs font-semibold tracking-wider uppercase">
-      <span>{label}</span>
-      <span className="font-mono font-normal">{count}</span>
-    </div>
-  );
-}
+const emptyForm = { name: "", description: "" };
 
 export default function Page() {
   const queryClient = useQueryClient();
@@ -179,7 +156,7 @@ export default function Page() {
   // Derived (no effect): the checkbox state = draft override or the role's scopes.
   const enabled = useMemo(() => {
     if (!active) return new Set<string>();
-    return new Set(drafts[active.id] ?? active.scopes);
+    return new Set(drafts[active.id] ?? active.scopes.map((s) => s.key));
   }, [active, drafts]);
 
   const dirtyIds = useMemo(() => {
@@ -187,7 +164,7 @@ export default function Page() {
     for (const role of roles) {
       const draft = drafts[role.id];
       if (!draft) continue;
-      const saved = new Set(role.scopes.map(s => s.key));
+      const saved = new Set(role.scopes.map((s) => s.key));
       if (draft.length !== saved.size || draft.some((k) => !saved.has(k)))
         ids.add(role.id);
     }
@@ -196,8 +173,6 @@ export default function Page() {
 
   const dirty = !!active && dirtyIds.has(active.id);
 
-  // Unsaved scope edits live in memory only. Warn on reload/close; in-app
-  // navigation still drops them, so the role list flags which roles are dirty.
   useEffect(() => {
     if (dirtyIds.size === 0) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -234,9 +209,8 @@ export default function Page() {
   const createMutation = useMutation({
     mutationFn: () =>
       createRole({
-        code: form.code,
         name: form.name,
-        description: form.description.trim() || null,
+        description: form.description.trim() || undefined,
       }),
     onSuccess: (role) => {
       toast.success("Role created");
@@ -245,7 +219,7 @@ export default function Page() {
       setSelectedId(role.id);
       invalidate();
     },
-    onError: () => toast.error("Failed to create role (code may exist)"),
+    onError: () => toast.error("Failed to create role"),
   });
 
   const editMutation = useMutation({
@@ -253,7 +227,7 @@ export default function Page() {
       if (!active) throw new Error("no role");
       return updateRole(active.id, {
         name: form.name,
-        description: form.description.trim() || null,
+        description: form.description.trim() || undefined,
       });
     },
     onSuccess: () => {
@@ -262,18 +236,6 @@ export default function Page() {
       invalidate();
     },
     onError: () => toast.error("Failed to update role"),
-  });
-
-  const activeToggleMutation = useMutation({
-    mutationFn: (isActive: boolean) => {
-      if (!active) throw new Error("no role");
-      return updateRole(active.id, { isActive });
-    },
-    onSuccess: (role) => {
-      toast.success(role.isActive ? "Role activated" : "Role deactivated");
-      invalidate();
-    },
-    onError: () => toast.error("Failed to change role status"),
   });
 
   const deleteMutation = useMutation({
@@ -306,18 +268,13 @@ export default function Page() {
     return scopes.filter(
       (s) =>
         s.key.toLowerCase().includes(q) ||
-        s.label.toLowerCase().includes(q) ||
         (s.description?.toLowerCase().includes(q) ?? false)
     );
   }, [scopes, search]);
 
   const groups = useMemo(() => groupScopes(visibleScopes), [visibleScopes]);
 
-  // Seeded roles are part of the app's contract: no scope, name or status edits.
-  const readOnly = !active || active.isSystem;
-
-  const systemRoles = roles.filter((r) => r.isSystem);
-  const customRoles = roles.filter((r) => !r.isSystem);
+  const readOnly = !active;
 
   const renderRole = (r: Role) => {
     const isSelected = active?.id === r.id;
@@ -334,40 +291,15 @@ export default function Page() {
             : "text-foreground hover:bg-muted/60"
         )}
       >
-        {/* Same 12px slot either way, so role names stay aligned. */}
-        {r.isSystem ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="flex size-3 flex-none items-center justify-center">
-                <Lock
-                  className={cn(
-                    "size-3",
-                    isSelected ? "text-primary" : "text-muted-foreground"
-                  )}
-                />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-64 text-pretty">
-              System role — seeded with the app. Its name, status and scopes are
-              read-only. Add a custom role to define your own.
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <span className="flex size-3 flex-none items-center justify-center">
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                isSelected ? "bg-primary" : "bg-muted-foreground/40"
-              )}
-            />
-          </span>
-        )}
-        <span
-          className={cn(
-            "flex-1 truncate",
-            !r.isActive && "text-muted-foreground line-through"
-          )}
-        >
+        <span className="flex size-3 flex-none items-center justify-center">
+          <span
+            className={cn(
+              "size-2 rounded-full",
+              isSelected ? "bg-primary" : "bg-muted-foreground/40"
+            )}
+          />
+        </span>
+        <span className="flex-1 truncate">
           {r.name}
         </span>
         {dirtyIds.has(r.id) && (
@@ -419,10 +351,10 @@ export default function Page() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeader
         title="Roles & Permissions"
-        description="Scopes granted per role. Frontend visibility only — the API enforces authorization. Roles are data, so you can add custom ones."
+        description="Scopes granted per role. Frontend visibility only — the API enforces authorization."
       />
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[280px_1fr]">
@@ -443,12 +375,7 @@ export default function Page() {
               </div>
             ))
           ) : (
-            <>
-              <RoleSectionHeader label="System" count={systemRoles.length} />
-              {systemRoles.map(renderRole)}
-              <RoleSectionHeader label="Custom" count={customRoles.length} />
-              {customRoles.map(renderRole)}
-            </>
+            roles.map(renderRole)
           )}
           <div className="p-3">
             <Button
@@ -479,23 +406,9 @@ export default function Page() {
                   enabled
                   {dirty && " · unsaved changes"}
                 </p>
-                {active?.isSystem && (
-                  <Alert className="mt-2.5 border-amber-500/40 bg-amber-50 text-amber-900 *:data-[slot=alert-description]:text-amber-800/80 dark:bg-amber-950/40 dark:text-amber-200 dark:*:data-[slot=alert-description]:text-amber-300/80">
-                    <Lock />
-                    <AlertTitle>System role — read-only</AlertTitle>
-                    <AlertDescription>
-                      Its name, status and scopes are fixed. Add a custom role
-                      to define your own.
-                    </AlertDescription>
-                  </Alert>
-                )}
               </div>
-              {/* System roles are read-only, so their actions are hidden
-                  outright rather than shown greyed out. */}
-              {active && !active.isSystem && (
+              {active && (
                 <div className="flex flex-none items-center gap-2 text-sm">
-                  {/* Discards the in-memory draft — the saved scopes on the
-                      server are never touched. */}
                   <Button
                     variant="outline"
                     onClick={() => clearDraft(active.id)}
@@ -511,36 +424,20 @@ export default function Page() {
                     {saveScopesMutation.isPending && <Spinner />}
                     Save permissions
                   </Button>
-                  {/* Role-level actions sit behind "more" so the scope-editing
-                      pair above stays the obvious primary flow. */}
                   <DropdownMenu>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            aria-label="More role actions"
-                          >
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>More role actions</TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuCheckboxItem
-                        checked={active.isActive}
-                        disabled={activeToggleMutation.isPending}
-                        onCheckedChange={(v) => activeToggleMutation.mutate(v)}
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="More role actions"
                       >
-                        Active
-                      </DropdownMenuCheckboxItem>
-                      <DropdownMenuSeparator />
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem
                         onClick={() => {
                           setForm({
-                            code: active.code,
                             name: active.name,
                             description: active.description ?? "",
                           });
@@ -707,11 +604,11 @@ export default function Page() {
                                 onCheckedChange={() =>
                                   setMany([s.key], !enabled.has(s.key))
                                 }
-                                aria-label={s.label}
+                                aria-label={s.key}
                               />
                             </TableCell>
                             <TableCell className="text-sm leading-[1.45] whitespace-normal">
-                              {s.description ?? s.label}
+                              {s.description ?? s.key}
                             </TableCell>
                             <TableCell>
                               <code className="text-muted-foreground font-mono text-xs">
@@ -743,16 +640,6 @@ export default function Page() {
           </DialogHeader>
           <div className="grid gap-4">
             <div>
-              <Label className="mb-1.5 block text-xs">Code *</Label>
-              <Input
-                placeholder="e.g. AUDITOR"
-                value={form.code}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, code: e.target.value }))
-                }
-              />
-            </div>
-            <div>
               <Label className="mb-1.5 block text-xs">Name *</Label>
               <Input
                 placeholder="e.g. Auditor"
@@ -781,7 +668,6 @@ export default function Page() {
               onClick={() => createMutation.mutate()}
               disabled={
                 createMutation.isPending ||
-                form.code.trim().length < 2 ||
                 form.name.trim().length < 1
               }
             >
@@ -798,8 +684,7 @@ export default function Page() {
           <DialogHeader>
             <DialogTitle>Edit role</DialogTitle>
             <DialogDescription>
-              Code <code className="font-mono">{active?.code}</code> stays the
-              same.
+              Update role name or description.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">

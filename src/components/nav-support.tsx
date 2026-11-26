@@ -3,12 +3,8 @@
 import Link from "next/link";
 import {
   BookOpen,
-  CircleHelp,
-  FileClock,
   LifeBuoy,
   Mail,
-  MessageCircle,
-  Smartphone,
 } from "lucide-react";
 
 import {
@@ -56,7 +52,7 @@ export function NavSupport() {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/docs">
+              <Link href="/dashboard/admin/docs">
                 <BookOpen className="mr-2 h-4 w-4" />
                 API Documentation
               </Link>

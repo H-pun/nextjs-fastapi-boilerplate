@@ -1,73 +1,46 @@
 from uuid import UUID
-from fastapi import APIRouter, Security, HTTPException
-from sqlalchemy import select, delete
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Security
 
 from api.core.deps import SessionDep, get_current_user
-from api.database import Role, Scope, User
+from api.database import User
 from api.schemas.role import (
-    RoleResponse, ScopeResponse, CreateRoleRequest, 
-    UpdateRoleRequest, SetRoleScopesRequest
+    RoleResponse, ScopeResponse, CreateRoleRequest,
+    UpdateRoleRequest, SetRoleScopesRequest,
 )
+
+import api.services.role as RoleService
 
 router = APIRouter()
 
-@router.get("", response_model=list[RoleResponse])
-async def list_roles(db: SessionDep, user: User = Security(get_current_user, scopes=["user:manage"])):
-    roles = db.scalars(select(Role)).all()
-    return roles
 
-@router.post("", response_model=RoleResponse, status_code=201)
-async def create_role(db: SessionDep, data: CreateRoleRequest, user: User = Security(get_current_user, scopes=["user:manage"])):
-    role = Role(name=data.name, code=data.code, description=data.description)
-    db.add(role)
-    db.commit()
-    db.refresh(role)
-    return role
+@router.get("")
+async def get_all(db: SessionDep, user: User = Security(get_current_user, scopes=["user:manage"])) -> list[RoleResponse]:
+    return await RoleService.get_all_roles(db)
 
-@router.patch("/{role_id}", response_model=RoleResponse)
-async def update_role(db: SessionDep, role_id: UUID, data: UpdateRoleRequest, user: User = Security(get_current_user, scopes=["user:manage"])):
-    role = db.get(Role, role_id)
-    if not role:
-        raise HTTPException(404, "Role not found")
-    if role.is_system and data.isActive is False:
-        raise HTTPException(400, "Cannot deactivate system role")
-    
-    if data.name:
-        role.name = data.name
-    if data.description is not None:
-        role.description = data.description
-    if data.isActive is not None:
-        role.is_active = data.isActive
-        
-    db.commit()
-    db.refresh(role)
-    return role
+
+# Declared before /{role_id} so "scopes" is not swallowed as a role id.
+@router.get("/scopes")
+async def get_scopes(db: SessionDep, user: User = Security(get_current_user, scopes=["user:manage"])) -> list[ScopeResponse]:
+    return await RoleService.get_all_scopes(db)
+
+
+@router.post("", status_code=201)
+async def create(db: SessionDep, data: CreateRoleRequest, user: User = Security(get_current_user, scopes=["user:manage"])) -> RoleResponse:
+    return await RoleService.create_role(db, data=data)
+
+
+@router.patch("/{role_id}")
+async def update(db: SessionDep, role_id: UUID, data: UpdateRoleRequest, user: User = Security(get_current_user, scopes=["user:manage"])) -> RoleResponse:
+    return await RoleService.update_role(db, role_id=role_id, data=data)
+
 
 @router.delete("/{role_id}")
-async def delete_role(db: SessionDep, role_id: UUID, user: User = Security(get_current_user, scopes=["user:manage"])):
-    role = db.get(Role, role_id)
-    if not role:
-        raise HTTPException(404, "Role not found")
-    if role.is_system:
-        raise HTTPException(400, "Cannot delete system role")
-    db.delete(role)
-    db.commit()
+async def delete(db: SessionDep, role_id: UUID, user: User = Security(get_current_user, scopes=["user:manage"])):
+    await RoleService.delete_role(db, role_id=role_id)
     return {"message": "success"}
 
-@router.get("/scopes", response_model=list[ScopeResponse])
-async def list_scopes(db: SessionDep, user: User = Security(get_current_user, scopes=["user:manage"])):
-    scopes = db.scalars(select(Scope)).all()
-    return scopes
 
-@router.put("/{role_id}/scopes", response_model=RoleResponse)
-async def set_role_scopes(db: SessionDep, role_id: UUID, data: SetRoleScopesRequest, user: User = Security(get_current_user, scopes=["user:manage"])):
-    role = db.get(Role, role_id)
-    if not role:
-        raise HTTPException(404, "Role not found")
-    
-    scopes = db.scalars(select(Scope).where(Scope.id.in_(data.scope_ids))).all()
-    role.scopes = scopes
-    db.commit()
-    db.refresh(role)
-    return role
+@router.put("/{role_id}/scopes")
+async def set_scopes(db: SessionDep, role_id: UUID, data: SetRoleScopesRequest, user: User = Security(get_current_user, scopes=["user:manage"])) -> RoleResponse:
+    return await RoleService.set_role_scopes(db, role_id=role_id, data=data)
+

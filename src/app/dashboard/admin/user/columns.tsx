@@ -1,89 +1,161 @@
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Copyable } from "@/components/copyable";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 
 import { ColumnDef } from "@tanstack/react-table";
 
 import type { UserData } from "@/lib/types/user";
-import { Ellipsis } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { getPrimaryRoleName } from "@/lib/data-table-grouping";
+import { AtSign, CalendarDays, Shield, Text } from "lucide-react";
 import { format } from "date-fns";
+import {
+  UserRowActions,
+  type UserRowActionsConfig,
+} from "./_components/user-row-actions";
 
 export const getColumns = (
-  onEdit: (data: UserData) => void,
-  onDelete: (data: UserData) => void,
-  onResetPassword: (data: UserData) => void,
-  onChangeRole: (data: UserData) => void
+  actions: UserRowActionsConfig
 ): ColumnDef<UserData>[] => [
   {
+    id: "id",
     accessorKey: "id",
     header: "ID",
     enableSorting: false,
+    meta: { label: "ID" },
   },
   {
+    id: "identifier",
     accessorKey: "identifier",
-    header: "Identifier",
-    enableHiding: false,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Identifier" />
+    ),
+    cell: ({ row }) => (
+      <Copyable value={row.original.identifier}>
+        {row.original.identifier}
+      </Copyable>
+    ),
+    enableColumnFilter: true,
+    meta: {
+      label: "Identifier",
+      placeholder: "Search identifier...",
+      variant: "text",
+      icon: Text,
+      enableGrouping: true,
+    },
   },
   {
+    id: "name",
     accessorKey: "name",
-    header: "Name",
-    enableHiding: false,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Name" />
+    ),
+    cell: ({ row }) => (
+      <Copyable value={row.original.name}>
+        <span className="font-medium">{row.original.name}</span>
+      </Copyable>
+    ),
+    enableColumnFilter: true,
+    meta: {
+      label: "Name",
+      placeholder: "Search name...",
+      variant: "text",
+      icon: Text,
+      enableGrouping: true,
+    },
   },
   {
+    id: "email",
     accessorKey: "email",
-    header: "Email",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Email" />
+    ),
+    cell: ({ row }) =>
+      row.original.email ? (
+        <Copyable value={row.original.email}>{row.original.email}</Copyable>
+      ) : (
+        "—"
+      ),
+    enableColumnFilter: true,
+    meta: {
+      label: "Email",
+      placeholder: "Search email...",
+      variant: "text",
+      icon: AtSign,
+      enableGrouping: true,
+    },
   },
   {
+    id: "username",
     accessorKey: "username",
-    header: "Username",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Username" />
+    ),
+    cell: ({ row }) => (
+      <Copyable value={row.original.username}>
+        {row.original.username}
+      </Copyable>
+    ),
+    enableColumnFilter: true,
+    meta: {
+      label: "Username",
+      placeholder: "Search username...",
+      variant: "text",
+      icon: Text,
+      enableGrouping: true,
+    },
   },
   {
-    accessorKey: "role.name",
-    header: "Role",
+    id: "roles",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Roles" />
+    ),
+    accessorFn: (row) => getPrimaryRoleName(row.roles),
+    meta: { label: "Roles", icon: Shield, enableGrouping: true },
+    cell: ({ row }) =>
+      row.original.roles?.length ? (
+        <div className="flex flex-wrap gap-1">
+          {row.original.roles.map((role) => (
+            <Badge key={role.id} variant="secondary" className="capitalize">
+              {role.name}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        "—"
+      ),
   },
   {
-    accessorKey: "phone",
-    header: "Phone",
-  },
-  {
+    id: "createdAt",
     accessorKey: "createdAt",
-    header: "Created At",
-    cell: ({ row }) => format(new Date(row.original.createdAt), "d MMM yyyy HH:mm"),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Created" />
+    ),
+    cell: ({ row }) => {
+      const label = format(new Date(row.original.createdAt), "d MMM yyyy HH:mm");
+      return <Copyable value={label}>{label}</Copyable>;
+    },
+    enableColumnFilter: true,
+    meta: { label: "Created at", variant: "date", icon: CalendarDays },
   },
   {
+    id: "updatedAt",
     accessorKey: "updatedAt",
-    header: "Updated At",
-    cell: ({ row }) => format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm"),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} label="Updated" />
+    ),
+    cell: ({ row }) => {
+      const label = format(new Date(row.original.updatedAt), "d MMM yyyy HH:mm");
+      return <Copyable value={label}>{label}</Copyable>;
+    },
+    enableColumnFilter: true,
+    meta: { label: "Updated at", variant: "date", icon: CalendarDays },
   },
   {
     id: "actions",
     enableHiding: false,
-    cell: ({ row }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="text-muted-foreground">
-            <Ellipsis />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onEdit(row.original)}>
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onDelete(row.original)}>
-            Delete
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onResetPassword(row.original)}>
-            Reset Password
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onChangeRole(row.original)}>
-            Change Role
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
+    enableSorting: false,
+    size: 48,
+    meta: { fitContent: true },
+    cell: ({ row }) => <UserRowActions user={row.original} {...actions} />,
   },
 ];

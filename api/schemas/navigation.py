@@ -8,7 +8,8 @@ class Navigation(BaseModel):
     icon: str | None = None
     order: int
     external: bool
-    id_scope: UUID | None = None
+    group: str | None = None
+    scope_id: UUID | None = None
     model_config = ConfigDict(
         from_attributes=True
     )

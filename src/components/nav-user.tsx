@@ -17,41 +17,35 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ThemeMenuItems } from "@/components/theme-menu-items";
 import { getInitials } from "@/lib/utils";
 
-import { BadgeCheck, LogOut, } from "lucide-react";
+import { BadgeCheck, ChevronsUpDown, LogOut, Palette } from "lucide-react";
 
 export function NavUser({
   user = {
     name: "Loading...",
-    identifier: "...",
+    email: "…",
   },
 }: {
   user?: {
     name: string;
-    identifier: string;
-    role?: { name?: string };
+    email?: string;
+    roles?: { name: string }[];
     avatar?: string;
   };
 }) {
-  const roleLabel = user.role?.name || "…";
-  
+  // A user may hold several roles; the strip under their name lists them all.
+  const roleLabel = user.roles?.map((r) => r.name).join(", ") || "…";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="hover:bg-muted data-[state=open]:bg-muted flex max-w-52 cursor-pointer items-center gap-2 rounded-md p-1 transition-colors"
+          className="hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent flex w-full cursor-pointer items-center gap-2 rounded-md p-2 text-left transition-colors"
         >
-          <span className="hidden min-w-0 text-right leading-tight sm:grid">
-            <span className="truncate text-xs font-medium capitalize">
-              {user.name.toLowerCase()}
-            </span>
-            <span className="text-muted-foreground truncate text-xs capitalize">
-              {roleLabel}
-            </span>
-          </span>
-          <Avatar className="size-7 rounded-md">
+          <Avatar className="size-8 rounded-md">
             {user.avatar && (
               <AvatarImage
                 src={`/api/server/preview?filename=${user.avatar}`}
@@ -62,11 +56,20 @@ export function NavUser({
               {getInitials(user.name)}
             </AvatarFallback>
           </Avatar>
+          <span className="grid min-w-0 flex-1 leading-tight">
+            <span className="truncate text-xs font-medium capitalize">
+              {user.name.toLowerCase()}
+            </span>
+            <span className="text-muted-foreground truncate text-xs capitalize">
+              {roleLabel}
+            </span>
+          </span>
+          <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="min-w-56 rounded-lg"
-        side="bottom"
+        side="top"
         align="end"
         sideOffset={8}
       >
@@ -87,7 +90,9 @@ export function NavUser({
               <span className="truncate font-semibold capitalize">
                 {user.name.toLowerCase()}
               </span>
-              <span className="truncate text-xs">{user.identifier}</span>
+              {/* The one thing every account has, and what they sign in with
+                  when they have not picked a username. */}
+              <span className="truncate text-xs">{user.email}</span>
             </div>
           </div>
         </DropdownMenuLabel>
@@ -99,15 +104,20 @@ export function NavUser({
               Account
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Palette />
+              Theme
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <ThemeMenuItems />
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() =>
-            signOut({ redirect: false }).then(
-              () => (window.location.href = "/")
-            )
-          }
-        >
+        <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
           <LogOut className="mr-2 h-4 w-4" />
           Log out
         </DropdownMenuItem>

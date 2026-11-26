@@ -13,13 +13,16 @@ from api.database import User
 
 is_prod = settings.ENVIRONMENT == "production"
 
+
 def custom_generate_unique_id(route: APIRoute) -> str:
     s = f"{route.tags[0]}-{route.name}"
     return "".join(ch if (ch.isalnum() or ch in "_-") else "_" for ch in s)
 
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     root_path=settings.API_V1_STR,
+    swagger_ui_parameters={"operationsSorter": "method"},
     generate_unique_id_function=custom_generate_unique_id,
     docs_url="/docs" if not is_prod else None,
     redoc_url="/redoc" if not is_prod else None,
@@ -40,6 +43,7 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 app.include_router(api_router)
+
 
 @app.get("/openapi.json", tags=["Documentation"])
 async def get_open_api_endpoint(user: User = Security(get_current_user, scopes=["user:manage"])):

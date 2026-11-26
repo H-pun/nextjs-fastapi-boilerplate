@@ -16,15 +16,14 @@ export const navigationChildSchema = z.object({
   // which the seeded ids (11111111-1111-1111-1111-111111111101) do not carry.
   // Rows created in the app do, so uuid() would reject exactly the seeded menu.
   id: z.guid(),
+  // Which scope reveals this row. Null means everyone sees it. Visibility
+  // only — the endpoint behind the link guards itself.
+  scopeId: z.guid().nullish(),
   title: z.string().min(1, "Title required"),
   url: z.string().min(1, "URL required"),
   order: z.int().nonnegative(),
   external: z.boolean(),
   icon: iconSchema,
-  // Scope that gates this item. Null = always visible (admins bypass anyway).
-  // Declared here on purpose: the form round-trips whatever this schema keeps,
-  // so an undeclared field would be dropped on save.
-  idScope: z.guid().nullish(),
 });
 
 export const navigationSchema = navigationChildSchema

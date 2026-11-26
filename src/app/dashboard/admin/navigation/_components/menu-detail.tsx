@@ -152,7 +152,7 @@ export function MenuDetail({
 
         <Controller
           control={control}
-          name={`${path}.idScope`}
+          name={`${path}.scopeId`}
           render={({ field }) => (
             <Field className="sm:col-span-2">
               <FieldLabel>Scope</FieldLabel>

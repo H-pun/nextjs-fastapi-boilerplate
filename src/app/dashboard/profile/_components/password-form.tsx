@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { PasswordInput } from "@/components/ui/password-input";
 
 import { passwordSchema } from "@/lib/types/user";
@@ -62,7 +63,8 @@ export default function SecurityForm() {
       </Field>
 
       <Button type="submit" disabled={isPending}>
-        <Lock className="mr-2 h-4 w-4" />
+        {isPending && <Spinner />}
+        {!isPending && <Lock className="mr-2 h-4 w-4" />}
         Change Password
       </Button>
     </form>

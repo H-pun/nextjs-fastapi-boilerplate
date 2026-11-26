@@ -28,8 +28,8 @@ export function ScopePicker({
 
   const keys = useMemo(() => (scopes ?? []).map((s) => s.key), [scopes]);
   const selectedKey = scopes?.find((s) => s.id === value)?.key ?? null;
-  const labelOf = (key: string) =>
-    scopes?.find((s) => s.key === key)?.label ?? key;
+  const descOf = (key: string) =>
+    scopes?.find((s) => s.key === key)?.description ?? key;
 
   return (
     <ComboboxField
@@ -45,12 +45,14 @@ export function ScopePicker({
       searchPlaceholder="Search scope..."
       emptyText="No scopes found."
       clearLabel="Everyone with the role"
-      searchText={(key) => `${labelOf(key)} ${key}`}
-      renderValue={(key) => <span className="truncate">{labelOf(key)}</span>}
+      searchText={(key) => `${key} ${descOf(key)}`}
+      renderValue={(key) => <span className="truncate font-mono">{key}</span>}
       renderItem={(key) => (
         <span className="flex min-w-0 flex-col">
-          <span className="truncate">{labelOf(key)}</span>
-          <span className="text-muted-foreground truncate text-xs">{key}</span>
+          <span className="truncate font-mono font-medium">{key}</span>
+          {descOf(key) !== key && (
+            <span className="text-muted-foreground truncate text-xs">{descOf(key)}</span>
+          )}
         </span>
       )}
     />

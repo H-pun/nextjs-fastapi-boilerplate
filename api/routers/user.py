@@ -1,12 +1,13 @@
 from uuid import UUID
-from fastapi import APIRouter, File, UploadFile, Security
+from fastapi import APIRouter, File, HTTPException, UploadFile, Security
 
+from api.core.config import settings
 from api.core.deps import SessionDep, CurrentUser, S3ClientDep, get_current_user
 from api.database import User
 from api.schemas.user import (
     AuthenticateUserRequest, AuthenticateUserResponse, UpdateUserRequest,
     UpdatePasswordRequest, AdminResetPasswordRequest, ChangeRoleRequest,
-    GetUserQuery, CreateUserRequest,
+    GetUserQuery, CreateUserRequest, OidcLoginRequest,
 )
 from api.schemas.pagination import Pagination
 
@@ -22,6 +23,23 @@ async def get_me(user: CurrentUser) -> AuthenticateUserResponse:
 async def login(db: SessionDep, data: AuthenticateUserRequest) -> AuthenticateUserResponse:
     return await UserService.authenticate(db, data=data)
 
+@router.get("/auth/providers")
+async def auth_providers() -> dict[str, bool]:
+    """Which ways in this deployment offers, so a client can show only the
+    buttons that would work."""
+    return {"credentials": True, **settings.oidc_providers}
+
+@router.post("/login/{provider}")
+async def login_oidc(db: SessionDep, provider: str, data: OidcLoginRequest) -> AuthenticateUserResponse:
+    """Exchange a provider's token for this app's own.
+
+    One route for every provider: the name in the path is the same one
+    `user_identities.provider` stores. Unguarded by design — it is a way in,
+    like /login. An unconfigured name answers 404 rather than admitting it
+    exists.
+    """
+    return await UserService.authenticate_oidc(db, provider=provider, data=data)
+
 @router.get("")
 async def get_all(db: SessionDep, filters: GetUserQuery, user: User = Security(get_current_user, scopes=["user:manage"])) -> Pagination[AuthenticateUserResponse]:
     return await UserService.get_all_user(db, filters=filters)
@@ -33,11 +51,15 @@ async def create(db: SessionDep, data: CreateUserRequest, user: User = Security(
 
 @router.put("/{id_user}")
 async def update(db: SessionDep, data: UpdateUserRequest, id_user: UUID, user: CurrentUser):
-    # Only allow update self or require user:manage scope
-    if user.id != id_user:
-        if "user:manage" not in (s.key for s in user.role.scopes):
-            raise HTTPException(status_code=403, detail="Forbidden: Missing scope 'user:manage'")
-    await UserService.update_user(db, data=data, id_user=id_user)
+    # Anyone may edit their own profile; editing someone else needs the scope.
+    if user.id != id_user and "user:manage" not in user.scope_keys:
+        raise HTTPException(status_code=403, detail="Forbidden: missing scope user:manage")
+    await UserService.update_user(
+        db,
+        data=data,
+        id_user=id_user,
+        allow_role_change="user:manage" in user.scope_keys,
+    )
     return {"message": "success"}
 
 @router.patch("/{id_user}/role")
