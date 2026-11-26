@@ -15,9 +15,8 @@ import {
 } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
 
-// Nothing in the option lists is an empty string, so this is safe as the
-// "clear the selection" marker.
-const NONE = "none";
+// Neither an icon name nor a scope key contains a NUL character.
+const NONE = "\u0000none";
 
 /**
  * Searchable single-select over a list of string keys. Backs both the icon and

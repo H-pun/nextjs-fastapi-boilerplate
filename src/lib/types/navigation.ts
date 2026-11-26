@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { type IconName } from "lucide-react/dynamic";
+import { iconNames, type IconName } from "lucide-react/dynamic";
+
+// Empty means "no icon". Anything else has to be a real lucide name, otherwise
+// NavIcon silently falls back to an alert circle and nobody notices the typo.
+const iconSchema = z
+  .custom<IconName>(
+    (value) =>
+      !value || (iconNames as readonly string[]).includes(value as string),
+    "Unknown icon"
+  )
+  .nullish();
 
 export const navigationChildSchema = z.object({
   // guid, not uuid: z.uuid() enforces the RFC 9562 version and variant bits,
@@ -13,7 +23,7 @@ export const navigationChildSchema = z.object({
   url: z.string().min(1, "URL required"),
   order: z.int().nonnegative(),
   external: z.boolean(),
-  icon: z.custom<IconName>().nullish(),
+  icon: iconSchema,
 });
 
 export const navigationSchema = navigationChildSchema
